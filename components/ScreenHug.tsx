@@ -2,7 +2,7 @@ import { ThemedText } from "@/components/themed-text";
 import { Colors } from "@/constants/theme";
 import { styles as GlobalStyles } from "@/styles/globalStyles";
 import React from "react";
-import { View, ViewStyle } from "react-native";
+import { ScrollView, ViewStyle } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 export default function ScreenHug({
@@ -19,13 +19,13 @@ export default function ScreenHug({
   const insets = useSafeAreaInsets();
 
   return (
-    <View
-      style={[
+    <ScrollView
+      contentContainerStyle={[
         {
           paddingInline: 20,
           paddingTop: insets.top + 20,
           backgroundColor: Colors.dark.background,
-          height: "100%",
+          flexGrow: 1,
           ...GlobalStyles.text,
         },
         style,
@@ -46,6 +46,6 @@ export default function ScreenHug({
         ""
       )}
       {children}
-    </View>
+    </ScrollView>
   );
 }

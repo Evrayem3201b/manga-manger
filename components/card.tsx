@@ -3,7 +3,7 @@ import { getStatusFromName } from "@/utils/getStatus";
 import { SimpleDisplay } from "@/utils/types";
 import { LinearGradient } from "expo-linear-gradient";
 import React from "react";
-import { Image, ImageSourcePropType, StyleSheet, View } from "react-native";
+import { Image, StyleSheet, View } from "react-native";
 import Badge from "./badge";
 import { ThemedText } from "./themed-text";
 
@@ -13,34 +13,18 @@ export default function Card({
   status,
   coverUrl,
   currentChap,
-}: SimpleDisplay) {
-  const ImageComp = () => {
-    if (coverUrl) {
-      const resolvedSource: ImageSourcePropType =
-        typeof coverUrl === "string"
-          ? { uri: coverUrl }
-          : (coverUrl as ImageSourcePropType);
-
-      return <Image source={resolvedSource} style={styles.image} />;
-    } else {
-      return (
-        <Image
-          source={require("@/assets/images/example-cover.webp")}
-          style={styles.image}
-        />
-      );
-    }
-  };
-
+  search,
+}: SimpleDisplay & { search?: boolean }) {
   return (
     <View style={{ width: 170, height: 291 }}>
       {/* IMAGE CONTAINER */}
       <View style={styles.imageWrapper}>
         <Badge status={getStatusFromName(status)} />
-
-        {/* IMAGE */}
-        {ImageComp()}
-        {/* GRADIENT OVERLAY */}
+        <Image
+          source={coverUrl ?? require("@/assets/images/example-cover.webp")}
+          style={{ width: 170, height: 220 }}
+        />
+        ;{/* GRADIENT OVERLAY */}
         <LinearGradient
           colors={[
             "rgba(0,0,0,0.75)", // bottom (black)
@@ -67,7 +51,8 @@ export default function Card({
           lightColor={Colors.dark.mutedForeground}
           style={{ fontSize: 14, marginTop: -2 }}
         >
-          Ch. {currentChap} {totalChap ? `/ ${totalChap}` : ""}
+          {search ? <></> : `Ch. ${currentChap} / `}
+          {totalChap ? `${totalChap}` : ""}
         </ThemedText>
       </View>
     </View>
@@ -82,10 +67,7 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     overflow: "hidden", // 🔥 REQUIRED
   },
-  image: {
-    width: "100%",
-    height: "100%",
-  },
+
   gradient: {
     ...StyleSheet.absoluteFillObject,
   },

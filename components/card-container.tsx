@@ -31,8 +31,8 @@ export default function CardContainer({ mangaSimple, style, search }: Props) {
           filterKeyword === "all"
             ? "flex"
             : item.status === filterKeyword
-              ? "flex"
-              : "none";
+            ? "flex"
+            : "none";
         return (
           <Pressable
             key={item.id + "_" + item.name}
@@ -54,6 +54,7 @@ export default function CardContainer({ mangaSimple, style, search }: Props) {
                 status={item.status}
                 coverUrl={item.coverUrl}
                 currentChap={item.currentChap}
+                search={search}
               />
             </View>
           </Pressable>

@@ -1,5 +1,6 @@
 import CardContainer from "@/components/card-container";
 import ScreenHug from "@/components/ScreenHug";
+import { Colors } from "@/constants/theme";
 import { useSearchManga } from "@/hooks/fetching/useSearchManga";
 import { Ionicons } from "@expo/vector-icons";
 import React, { useState } from "react";
@@ -49,7 +50,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     paddingBlock: 16,
-    backgroundColor: "#0b0b0d", // true dark background
+    backgroundColor: Colors.dark.background, // true dark background
   },
 
   searchBox: {

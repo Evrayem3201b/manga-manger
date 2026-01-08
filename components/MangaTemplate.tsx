@@ -1,16 +1,38 @@
 import { Colors } from "@/constants/theme";
 import { useMangaDetails } from "@/hooks/fetching/mangaDetails/useMangaDetails";
+import { getStatusFromName } from "@/utils/getStatus";
+import { Ionicons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
 import React, { useState } from "react";
-import { ActivityIndicator, Image, Pressable, Text, View } from "react-native";
+import {
+  ActivityIndicator,
+  Image,
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
+import Badge from "./badge";
+import ScreenHug from "./ScreenHug";
 import Tag from "./tag";
+import { ThemedText } from "./themed-text";
+import { Button } from "./ui/button";
 
 const INITIAL_VISIBLE_TAGS = 5;
 
-export default function MangaTemplate({ id }: { id: string }) {
+export default function MangaTemplate({
+  id,
+  addBtn,
+}: {
+  id: string;
+  addBtn: boolean;
+}) {
   const { result, isLoading, genres } = useMangaDetails(id);
   const [expanded, setExpanded] = useState(false);
   const [expandedText, setExpandedText] = useState(false);
- 
+  const [query, setQuery] = useState(String(result?.currentChap || ""));
+
   if (isLoading) {
     return <ActivityIndicator size="large" color={Colors.dark.text} />;
   }
@@ -25,11 +47,30 @@ export default function MangaTemplate({ id }: { id: string }) {
       : 0;
 
   return (
-    <>
-      <Image
-        source={result?.coverUrl}
-        style={{ width: 250, height: 350, borderRadius: 25 }}
-      />
+    <ScreenHug
+      title={""}
+      style={{
+        paddingTop: 30,
+        alignItems: "center",
+        marginTop: -10,
+      }}
+    >
+      <View style={{ position: "relative" }}>
+        <Badge status={getStatusFromName(result?.status || "ongoing")} />
+        <Image
+          source={result?.coverUrl}
+          style={{ width: 250, height: 350, borderRadius: 25 }}
+        />
+        <LinearGradient
+          colors={[
+            "rgba(0,0,0,0.75)", // bottom (black)
+            "rgba(0,0,0,0.0)", // top (transparent)
+          ]}
+          start={{ x: 0.5, y: 1 }}
+          end={{ x: 0.5, y: 0.8 }}
+          style={{ ...StyleSheet.absoluteFillObject }}
+        />
+      </View>
 
       <Text
         style={{
@@ -123,7 +164,90 @@ export default function MangaTemplate({ id }: { id: string }) {
           {result?.description}
         </Text>
       </Pressable>
-      <View></View>
-    </>
+      <View style={{ marginTop: 70, width: "90%" }}>
+        <ThemedText
+          lightColor={"#999"}
+          style={{ fontSize: 14, marginBottom: 8, textTransform: "uppercase" }}
+        >
+          Current chapter
+        </ThemedText>
+        <View style={styles.searchBox}>
+          <TextInput
+            keyboardType="numeric"
+            placeholder="Enter chapter..."
+            placeholderTextColor="#999"
+            style={styles.input}
+            value={query}
+            onChangeText={(text) => setQuery(text)}
+          />
+          {query.length > 0 && (
+            <Pressable onPress={() => setQuery("")}>
+              <Ionicons name="close-circle" size={18} color="#999" />
+            </Pressable>
+          )}
+        </View>
+      </View>
+      {/* <View style={{ marginTop: 0, width: "90%" }}>
+        <ThemedText
+          lightColor={"#999"}
+          style={{ fontSize: 14, marginBottom: 8, textTransform: "uppercase" }}
+        >
+          Current chapter
+        </ThemedText>
+        <View style={styles.searchBox}>
+          <TextInput
+            keyboardType="numeric"
+            placeholder="Enter chapter..."
+            placeholderTextColor="#999"
+            style={styles.input}
+            value={query}
+            onChangeText={(text) => setQuery(text)}
+          />
+
+          <Ionicons name="chevron-down" size={18} color="#999" />
+        </View>
+      </View> */}
+      <Button
+        style={{
+          width: "100%",
+          justifyContent: "center",
+          alignItems: "center",
+          flexDirection: "row",
+          marginBlock: 10,
+          borderRadius: 20,
+          backgroundColor: Colors.dark.primary,
+        }}
+        textStyle={{
+          textAlign: "center",
+          alignItems: "center",
+          justifyContent: "center",
+          flexGrow: 1,
+        }}
+      >
+        Save progress
+      </Button>
+    </ScreenHug>
   );
 }
+
+const styles = StyleSheet.create({
+  searchBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 14,
+    height: 46,
+    borderRadius: 16,
+
+    backgroundColor: "#1a1a1e", // elevated dark surface
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.06)",
+
+    marginBottom: 24,
+  },
+  input: {
+    flex: 1,
+    fontSize: 16,
+    color: "#f5f5f7", // primary text
+  },
+});

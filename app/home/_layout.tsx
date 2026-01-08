@@ -1,13 +1,12 @@
 import { Colors } from "@/constants/theme";
-import { useMangaDetails } from "@/hooks/fetching/mangaDetails/useMangaDetails";
 import { Ionicons } from "@expo/vector-icons";
 import { router, Stack, useLocalSearchParams } from "expo-router";
 import React from "react";
-import { ActivityIndicator, Pressable, Text } from "react-native";
+import { Pressable, Text } from "react-native";
 
 export default function Layout() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { result, isLoading } = useMangaDetails(id);
+
   return (
     <Stack>
       <Stack.Screen
@@ -43,13 +42,16 @@ export default function Layout() {
                   fontFamily: "poppins",
                 }}
               >
-                {isLoading ? <ActivityIndicator /> : result?.name}
+                Back
               </Text>
             </Pressable>
           ),
 
           animation: "slide_from_right",
           headerStyle: {
+            backgroundColor: Colors.dark.background,
+          },
+          contentStyle: {
             backgroundColor: Colors.dark.background,
           },
         }}
