@@ -1,4 +1,4 @@
-import MangaTemplate from "@/components/MangaTemplateHome";
+import MangaTemplate from "@/components/MangaTemplateSearch";
 import { useLocalSearchParams } from "expo-router";
 
 import React from "react";

@@ -21,10 +21,14 @@ export default function Card({
       <View style={styles.imageWrapper}>
         <Badge status={getStatusFromName(status)} />
         <Image
-          source={coverUrl ?? require("@/assets/images/example-cover.webp")}
+          source={
+            coverUrl
+              ? { uri: coverUrl.uri }
+              : require("@/assets/images/example-cover.webp")
+          }
           style={{ width: 170, height: 220 }}
         />
-        ;{/* GRADIENT OVERLAY */}
+        {/* GRADIENT OVERLAY */}
         <LinearGradient
           colors={[
             "rgba(0,0,0,0.75)", // bottom (black)
@@ -51,8 +55,8 @@ export default function Card({
           lightColor={Colors.dark.mutedForeground}
           style={{ fontSize: 14, marginTop: -2 }}
         >
-          {search ? <></> : `Ch. ${currentChap} / `}
-          {totalChap ? `${totalChap}` : ""}
+          {search ? <></> : `Ch. ${currentChap ? currentChap : 0} / `}
+          {totalChap ? `${totalChap}` : "Unknown"}
         </ThemedText>
       </View>
     </View>

@@ -1,3 +1,4 @@
+import { Colors } from "@/constants/theme";
 import { MaterialIcons } from "@expo/vector-icons";
 import { BlurView } from "expo-blur";
 import { Tabs } from "expo-router";
@@ -82,6 +83,7 @@ export default function TabsLayout() {
           tabBarIcon: ({ color }) => (
             <MaterialIcons name="library-books" size={24} color={color} />
           ),
+          sceneStyle: { backgroundColor: Colors.dark.background },
         }}
       />
 
@@ -89,6 +91,7 @@ export default function TabsLayout() {
         name="search"
         options={{
           title: "Search",
+          sceneStyle: { backgroundColor: Colors.dark.background },
           tabBarIcon: ({ color }) => (
             <MaterialIcons name="search" size={24} color={color} />
           ),
@@ -98,6 +101,7 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="settings"
         options={{
+          sceneStyle: { backgroundColor: Colors.dark.background },
           title: "Settings",
           tabBarIcon: ({ color }) => (
             <MaterialIcons name="settings" size={24} color={color} />

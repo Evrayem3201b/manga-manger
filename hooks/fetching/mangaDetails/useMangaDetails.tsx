@@ -18,7 +18,13 @@ function buildCoverUrl(manga: MangaWithCover): string {
 export function useMangaDetails(id: string) {
   const { data, isLoading, isFetching } = useMangaQuery(id);
 
-  const result: (SimpleDisplay & { description: string }) | null = data
+  const result:
+    | (SimpleDisplay & {
+        description: string;
+        year: number | null;
+        rating: string | null;
+      })
+    | null = data
     ? {
         id: data.id,
         name:
@@ -33,6 +39,8 @@ export function useMangaDetails(id: string) {
           Object.values(data.attributes.description)[0] ||
           "No description available.",
         currentChap: 0,
+        year: data.attributes.year || null,
+        rating: data.attributes.contentRating || null,
       }
     : null;
   const genres = data ? data?.attributes.tags : null;

@@ -1,17 +1,10 @@
-import { Manga, SearchDisplay } from "@/utils/types";
-import { ImageSourcePropType } from "react-native";
+import { Manga, SimpleDisplay } from "@/utils/types";
 import { useSearchData } from "./useSearchQuery";
 
-const FALLBACK_COVER = require("@/assets/images/example-cover.webp");
-
-function buildCoverUrl(manga: Manga): ImageSourcePropType {
+function buildCoverUrl(manga: Manga): { uri: string } {
   const cover = manga.relationships.find(
-    (rel): rel is any => rel.type === "cover_art"
+    (rel): rel is any => rel.type === "cover_art",
   );
-
-  if (!cover || !("attributes" in cover)) {
-    return FALLBACK_COVER;
-  }
 
   return {
     uri: `https://uploads.mangadex.org/covers/${manga.id}/${cover.attributes.fileName}.512.jpg`,
@@ -21,7 +14,7 @@ function buildCoverUrl(manga: Manga): ImageSourcePropType {
 export function useSearchManga(query: string) {
   const { data = [], isLoading, isFetching } = useSearchData(query);
 
-  const results: SearchDisplay[] = data.map((manga) => ({
+  const results: SimpleDisplay[] = data.map((manga) => ({
     id: manga.id,
     name:
       manga.attributes.title.en ??

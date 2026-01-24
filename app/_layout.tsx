@@ -38,12 +38,15 @@ export default function RootLayout() {
 
 CREATE TABLE IF NOT EXISTS manga (
   id TEXT PRIMARY KEY,
-  title TEXT NOT NULL,
+  name TEXT NOT NULL,
   description TEXT,
   cover_url TEXT,
   status TEXT,
   year INTEGER,
   rating REAL,
+  total_chap INTEGER DEFAULT 0,
+  current_chap INTEGER DEFAULT 0,
+  reading_link TEXT,
   created_at INTEGER,
   updated_at INTEGER
 );
@@ -73,6 +76,13 @@ CREATE TABLE IF NOT EXISTS favorites (
   FOREIGN KEY (manga_id) REFERENCES manga(id) ON DELETE CASCADE
 );
 
+CREATE TABLE IF NOT EXISTS plan_to_read (
+  manga_id TEXT PRIMARY KEY,
+  added_at INTEGER,
+  FOREIGN KEY (manga_id) REFERENCES manga(id) ON DELETE CASCADE
+);
+
+
 CREATE TABLE IF NOT EXISTS reading_progress (
   manga_id TEXT PRIMARY KEY,
   chapter_id TEXT,
@@ -87,11 +97,12 @@ CREATE TABLE IF NOT EXISTS search_cache (
   created_at INTEGER
 );
 
-CREATE INDEX IF NOT EXISTS idx_manga_title ON manga(title);
+CREATE INDEX IF NOT EXISTS idx_manga_title ON manga(name);
 CREATE INDEX IF NOT EXISTS idx_chapters_manga ON chapters(manga_id);
 CREATE INDEX IF NOT EXISTS idx_genres_manga ON manga_genres(manga_id);
 `);
           }}
+          options={{ useNewConnection: false }}
         >
           <QueryClientProvider client={queryClient}>
             <Stack

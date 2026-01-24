@@ -1,5 +1,3 @@
-import { ImageSourcePropType } from "react-native";
-
 export const filters: Filter[] = [
   {
     name: "all",
@@ -19,7 +17,7 @@ export const filters: Filter[] = [
   },
   {
     name: "cancelled",
-    title: "cancelled",
+    title: "Cancelled",
   },
   {
     title: "Plan to read",
@@ -127,8 +125,29 @@ export type SimpleDisplay = {
   name: string;
   totalChap?: number;
   status: MangaCategory;
-  coverUrl: ImageSourcePropType;
+  coverUrl: { uri: string };
   currentChap?: number;
+  description?: string;
+  year?: number;
+  rating?: string;
+  readingLink?: string;
+  isFavourite?: boolean;
+  isPlanToRead?: boolean;
+};
+
+export type MangaDB = {
+  cover_url: string;
+  created_at: number;
+  current_chap: number;
+  description: string;
+  id: string;
+  name: string;
+  rating: null;
+  status: MangaCategory;
+  total_chap: number;
+  reading_link: string;
+  updated_at: number;
+  year: number;
 };
 
 export type MangaCategory =
@@ -242,14 +261,6 @@ export interface MangaAttributes {
   availableTranslatedLanguages: string[];
   latestUploadedChapter: string;
 }
-export type SearchDisplay = {
-  id: string;
-  name: string;
-  totalChap?: number;
-  status: MangaStatus;
-  coverUrl: ImageSourcePropType;
-  currentChap: number;
-};
 
 export type MangaRelationshipType = "author" | "artist" | "cover_art" | "manga";
 
