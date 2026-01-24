@@ -1,11 +1,13 @@
 import CardContainer from "@/components/card-container";
 import ScreenHug from "@/components/ScreenHug";
+import { ThemedText } from "@/components/themed-text";
 import { Colors } from "@/constants/theme";
 import { useSearchManga } from "@/hooks/fetching/useSearchManga";
 import { Ionicons } from "@expo/vector-icons";
 import { useSQLiteContext } from "expo-sqlite";
 import React, { useEffect, useState } from "react";
 import {
+  Alert,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -20,26 +22,57 @@ export default function Search() {
   const [debounced, setDebounced] = useState("");
   const db = useSQLiteContext();
   const [ids, setIds] = useState<string[]>([]);
+  const [recentSearches, setRecentSearches] = useState<
+    { query: string; result_ids: string[] }[]
+  >([]);
+  const { results } = useSearchManga(debounced);
 
+  // 2. Handle Debounce separately to keep UI snappy
   useEffect(() => {
     const t = setTimeout(() => setDebounced(query), 300);
-    const saveQuery = async () => {
-      if (query.length === 0) return;
-      try {
-        await db.runAsync(
-          `INSERT INTO search_cache (query, result_ids, created_at) VALUES (?, ?, ?)`,
-          [query, JSON.stringify(ids), Date.now()],
-        );
-      } catch (e) {
-        console.error("Failed to save recent search:", e);
-      }
-    };
-    saveQuery();
     return () => clearTimeout(t);
   }, [query]);
 
-  const { results } = useSearchManga(debounced);
-  setIds(results.map((m) => m.id));
+  // 3. Save to DB ONLY when results arrive and actually exist
+  useEffect(() => {
+    if (debounced.length > 2 && results.length > 0) {
+      const saveToCache = async () => {
+        try {
+          const resultIds = results.map((m) => m.id);
+          await db.runAsync(
+            `INSERT OR REPLACE INTO search_cache (query, result_ids, created_at) VALUES (?, ?, ?)`,
+            [debounced, JSON.stringify(resultIds), Date.now()],
+          );
+        } catch (e) {
+          console.error("Cache error:", e);
+        }
+      };
+      saveToCache();
+    }
+  }, [results]); // Only trigger when API results change
+
+  // 4. Load history once on mount
+  useEffect(() => {
+    const loadRecentSearches = async () => {
+      try {
+        const rows = await db.getAllAsync<{
+          query: string;
+          result_ids: string;
+        }>(
+          `SELECT query, result_ids FROM search_cache ORDER BY created_at DESC LIMIT 10`,
+        );
+        setRecentSearches(
+          rows.map((r) => ({
+            query: r.query,
+            result_ids: JSON.parse(r.result_ids),
+          })),
+        );
+      } catch (e) {
+        Alert.alert(`${e}`);
+      }
+    };
+    loadRecentSearches();
+  }, []);
   return (
     <ScreenHug title="Search" scroll={false}>
       <KeyboardAvoidingView
@@ -65,12 +98,41 @@ export default function Search() {
           </View>
 
           <CardContainer search mangaSimple={results} />
+          {/* 1. Show Recent Searches ONLY when the input is empty */}
+          {query.length === 0 && recentSearches.length > 0 && (
+            <View style={styles.historyContainer}>
+              <ThemedText
+                lightColor={Colors.dark.text}
+                style={styles.sectionTitle}
+              >
+                Recent Searches
+              </ThemedText>
+              {recentSearches.map((item, index) => (
+                <Pressable
+                  key={index}
+                  style={styles.recentItem}
+                  onPress={() => {
+                    setQuery(item.query);
+                    setDebounced(item.query); // Skip debounce for history clicks
+                  }}
+                >
+                  <Ionicons
+                    name="time-outline"
+                    size={20}
+                    color={Colors.dark.primary}
+                  />
+                  <Text style={styles.recentText}>{item.query}</Text>
+                </Pressable>
+              ))}
+            </View>
+          )}
 
-          {query.length > 0 && results.length === 0 && (
+          {/* 2. Show No Results message only when user has typed but nothing came back */}
+          {query.length > 2 && results.length === 0 && (
             <View style={styles.emptyState}>
-              <Ionicons name="search-outline" size={48} color="#ccc" />
+              <Ionicons name="search-outline" size={48} color="#333" />
               <Text style={styles.emptyText}>
-                No results yet. Start typing to search.
+                No results found for `{query}`
               </Text>
             </View>
           )}
@@ -81,6 +143,11 @@ export default function Search() {
 }
 
 const styles = StyleSheet.create({
+  historyContainer: {
+    flex: 1,
+    width: "100%",
+    marginTop: 10,
+  },
   container: {
     flex: 1,
     paddingVertical: 16,
