@@ -2,19 +2,26 @@ import { Manga, SimpleDisplay } from "@/utils/types";
 import { useSearchData } from "./useSearchQuery";
 
 function buildCoverUrl(manga: Manga): { uri: string } {
-  const cover = manga.relationships.find(
+  const cover = manga.relationships?.find(
     (rel): rel is any => rel.type === "cover_art",
   );
+
+  // Fallback if cover art is missing from relationships
+  if (!cover?.attributes?.fileName) {
+    return require("@/assets/images/example-cover.webp");
+  }
 
   return {
     uri: `https://uploads.mangadex.org/covers/${manga.id}/${cover.attributes.fileName}.512.jpg`,
   };
 }
 
-export function useSearchManga(query: string) {
-  const { data = [], isLoading, isFetching } = useSearchData(query);
+export function useSearchManga(query: string, limit = 20, offset = 0) {
+  // Use the destructuring to match your useSearchData return structure
+  const { data, isLoading, isFetching } = useSearchData(query, limit, offset);
 
-  const results: SimpleDisplay[] = data.map((manga) => ({
+  // Since data is { results: Manga[], total: number } or undefined
+  const results: SimpleDisplay[] = (data?.results ?? []).map((manga) => ({
     id: manga.id,
     name:
       manga.attributes.title.en ??
@@ -22,7 +29,8 @@ export function useSearchManga(query: string) {
       "Unknown",
     status: manga.attributes.status,
     coverUrl: buildCoverUrl(manga),
-    totalChap: Number(manga.attributes.lastChapter) || 0,
+    // MangaDex uses strings for chapter numbers; handle properly
+    totalChap: parseInt(manga.attributes.lastChapter || "0", 10),
     currentChap: 0,
   }));
 
@@ -30,5 +38,6 @@ export function useSearchManga(query: string) {
     results,
     isLoading,
     isFetching,
+    total: data?.total ?? 0,
   };
 }

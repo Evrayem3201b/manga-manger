@@ -132,7 +132,7 @@ export default function MangaTemplate({ id }: { id: string }) {
       setDownloadedImageUri(output.uri);
       return output.uri;
     } catch (error) {
-      console.error("New API Download Error:", error);
+      Alert.alert("New API Download Error:", error);
       return null;
     }
   }

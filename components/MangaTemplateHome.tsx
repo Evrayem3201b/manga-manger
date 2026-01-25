@@ -102,7 +102,7 @@ export default function MangaTemplate({ id }: { id: string }) {
           // );
         }
       } catch (error) {
-        // console.error("Error loading manga from DB:", error);
+        // Alert.alert("Error loading manga from DB:", error);
         Alert.alert("Error", "Failed to load manga details.");
       } finally {
         setIsLoading(false);
@@ -142,7 +142,7 @@ export default function MangaTemplate({ id }: { id: string }) {
       );
       Alert.alert("Success", "Progress saved!");
     } catch (e) {
-      // console.error(e);
+      // Alert.alert(e);
       Alert.alert("Error", `Failed to save progress: ${e}`);
     }
   }
@@ -194,7 +194,7 @@ export default function MangaTemplate({ id }: { id: string }) {
         await db.runAsync("DELETE FROM favorites WHERE manga_id = ?", [id]);
       }
     } catch (e) {
-      // console.error("Failed to update favorites", e);
+      // Alert.alert("Failed to update favorites"+ e);
       Alert.alert("Error", "Failed to update favorites.");
       // Rollback UI if DB fails
       setIsFavorite(!newValue);
@@ -215,7 +215,7 @@ export default function MangaTemplate({ id }: { id: string }) {
         await db.runAsync("DELETE FROM plan_to_read WHERE manga_id = ?", [id]);
       }
     } catch (e) {
-      // console.error("Failed to update plan to read", e);
+      // Alert.alert("Failed to update plan to read"+ e);
       Alert.alert("Error", "Failed to update plan to read list.");
       // Rollback UI if DB fails
       setIsPlanToRead(!newValue);

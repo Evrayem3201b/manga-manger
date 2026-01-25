@@ -6,6 +6,7 @@ import { Directory, File, Paths } from "expo-file-system";
 import * as ImagePicker from "expo-image-picker";
 import * as Sharing from "expo-sharing";
 import { useSQLiteContext } from "expo-sqlite";
+import { openBrowserAsync } from "expo-web-browser";
 import React, { useEffect, useState } from "react";
 import {
   Alert,
@@ -56,7 +57,7 @@ export default function Settings() {
         });
         setHasLoaded(true);
       } catch (e) {
-        console.error("Load Error:", e);
+        Alert.alert("Load Error:" + e);
       }
     }
     loadData();
@@ -71,7 +72,7 @@ export default function Settings() {
           username,
         ]);
       } catch (e) {
-        console.error("Username Save Error:", e);
+        Alert.alert("Username Save Error:" + e);
       } finally {
         setIsSaving(false);
       }
@@ -122,7 +123,7 @@ export default function Settings() {
       setAvatarPath(avatarFile.uri);
       Alert.alert("Success", "Avatar updated!");
     } catch (e) {
-      console.error(e);
+      Alert.alert(e);
       Alert.alert("Error", "Failed to save image.");
     }
   }
@@ -183,7 +184,7 @@ export default function Settings() {
                 await new File(pickedFile.uri).copy(dbFile);
                 Alert.alert("Success", "Imported. Please restart the app.");
               } catch (err) {
-                console.error(err);
+                Alert.alert(err);
                 Alert.alert("Error", "Import failed.");
               }
             },
@@ -279,7 +280,14 @@ export default function Settings() {
             showChevron={false}
             color="#333"
           />
-          <SettingItem icon="logo-github" label="Source Code" color="#333" />
+          <SettingItem
+            icon="logo-github"
+            onPress={() =>
+              openBrowserAsync("https://github.com/Evrayem3201b/manga-manger")
+            }
+            label="Source Code"
+            color="#333"
+          />
         </View>
       </ScrollView>
     </ScreenHug>
