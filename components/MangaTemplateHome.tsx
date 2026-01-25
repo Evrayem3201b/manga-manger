@@ -154,6 +154,15 @@ export default function MangaTemplate({ id }: { id: string }) {
     handleImageDownload();
   }, [id]);
 
+  useEffect(() => {
+    async function handleImageDownload() {
+      console.log(
+        await db.getFirstAsync(`SELECT * FROM manga WHERE id = ?`, [id]),
+      );
+    }
+    handleImageDownload();
+  }, []);
+
   if (isLoading) {
     return <ActivityIndicator size="large" color={Colors.dark.text} />;
   }

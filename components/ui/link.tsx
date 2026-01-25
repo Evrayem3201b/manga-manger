@@ -2,7 +2,7 @@ import { Text } from "@/components/ui/text";
 import { Link as ERLink, Href } from "expo-router";
 import { openBrowserAsync } from "expo-web-browser";
 import { type ComponentProps } from "react";
-import { Linking, Platform } from "react-native";
+import { Alert, Linking, Platform } from "react-native";
 
 type Props = Omit<ComponentProps<typeof ERLink>, "href"> & {
   href: Href;
@@ -81,7 +81,7 @@ export function Link({
               // Optionally show an alert to the user
             }
           } catch (error) {
-            Alert.alert("Error opening URL:", error);
+            Alert.alert("Error opening URL:" + error);
           }
         } else {
           // For HTTP/HTTPS URLs, use browser preference
@@ -93,7 +93,7 @@ export function Link({
             try {
               await openBrowserAsync(hrefString);
             } catch (error) {
-              Alert.alert("Error opening browser:", error);
+              Alert.alert("Error opening browser:" + error);
               // Fallback to external browser
               await Linking.openURL(hrefString);
             }

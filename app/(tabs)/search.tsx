@@ -100,7 +100,7 @@ export default function Search() {
         prev.filter((item) => item.query !== queryToDelete),
       );
     } catch (e) {
-      console.error("Delete error:", e);
+      Alert.alert("Delete error:" + e);
     }
   }
 
