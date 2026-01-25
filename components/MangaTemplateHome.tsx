@@ -3,6 +3,7 @@ import { getBadgeColor as BadgeData } from "@/utils/BadgeData";
 import { getStatusFromName } from "@/utils/getStatus";
 import { MangaDB, SimpleDisplay, Tag as TagType } from "@/utils/types";
 import { Ionicons, Octicons } from "@expo/vector-icons";
+import * as FileSystem from "expo-file-system";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import { useSQLiteContext } from "expo-sqlite";
@@ -44,6 +45,9 @@ export default function MangaTemplate({ id }: { id: string }) {
   const [readingLink, setReadingLink] = useState(data?.readingLink || "");
   const [isFavorite, setIsFavorite] = useState(false);
   const [isPlanToRead, setIsPlanToRead] = useState(false);
+  const [downloadedImageUri, setDownloadedImageUri] = useState<string | null>(
+    null,
+  );
 
   const db = useSQLiteContext();
   const router = useRouter();
@@ -109,6 +113,45 @@ export default function MangaTemplate({ id }: { id: string }) {
       }
     }
     fetchManga();
+  }, [id]);
+
+  useEffect(() => {
+    async function handleImageDownload() {
+      if (!data?.coverUrl.uri) return null;
+      if (!data.coverUrl.uri) {
+        try {
+          const coversDir = new FileSystem.Directory(
+            FileSystem.Paths.document,
+            "covers",
+          );
+
+          // 1. Ensure directory exists
+          if (!coversDir.exists) {
+            await coversDir.create();
+          }
+
+          const destinationFile = new FileSystem.File(
+            coversDir,
+            `${data.id}.jpg`,
+          );
+
+          // 2. Perform download with the idempotent flag
+          // Setting idempotent: true tells Expo to overwrite if the file exists
+          const output = await FileSystem.File.downloadFileAsync(
+            data.coverUrl.uri,
+            destinationFile,
+            { idempotent: true },
+          );
+
+          setDownloadedImageUri(output.uri);
+          return output.uri;
+        } catch (error) {
+          Alert.alert("New API Download Error:" + error);
+          return null;
+        }
+      }
+    }
+    handleImageDownload();
   }, [id]);
 
   if (isLoading) {
@@ -272,7 +315,9 @@ export default function MangaTemplate({ id }: { id: string }) {
 
         <Image
           source={
-            data?.coverUrl ?? require("@/assets/images/example-cover.webp")
+            data?.coverUrl ??
+            downloadedImageUri ??
+            require("@/assets/images/example-cover.webp")
           }
           style={{ width: 250, height: 350, borderRadius: 25 }}
         />
