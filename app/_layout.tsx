@@ -1,4 +1,3 @@
-import UserContextProvider from "@/context/UserContext";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { Stack, useRouter } from "expo-router";
 import React from "react";
@@ -30,17 +29,23 @@ export default function RootLayout() {
 
   return (
     <ThemeProvider value={DefaultTheme}>
-      <UserContextProvider>
-        <SQLiteProvider
-          databaseName="manga.db"
-          onInit={async (db) => {
-            db.execAsync(`PRAGMA foreign_keys = ON;
+      <SQLiteProvider
+        databaseName="manga.db"
+        onInit={async (db) => {
+          db.execAsync(`PRAGMA foreign_keys = ON;
+
+              CREATE TABLE IF NOT EXISTS "user" (
+              id INTEGER PRIMARY KEY,
+              username TEXT,
+              avatar_path TEXT
+              );
 
 CREATE TABLE IF NOT EXISTS manga (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
   description TEXT,
   cover_url TEXT,
+  cover_online_link TEXT,
   status TEXT,
   year INTEGER,
   rating REAL,
@@ -101,31 +106,30 @@ CREATE INDEX IF NOT EXISTS idx_manga_title ON manga(name);
 CREATE INDEX IF NOT EXISTS idx_chapters_manga ON chapters(manga_id);
 CREATE INDEX IF NOT EXISTS idx_genres_manga ON manga_genres(manga_id);
 `);
-          }}
-          options={{ useNewConnection: false }}
-        >
-          <QueryClientProvider client={queryClient}>
-            <Stack
-              screenOptions={{
-                headerShown: false,
+        }}
+        options={{ useNewConnection: false }}
+      >
+        <QueryClientProvider client={queryClient}>
+          <Stack
+            screenOptions={{
+              headerShown: false,
+              contentStyle: {
+                paddingTop: insets.top,
+                backgroundColor: Colors.dark.background,
+              },
+            }}
+          >
+            <Stack.Screen
+              name="(tabs)"
+              options={{
                 contentStyle: {
-                  paddingTop: insets.top,
                   backgroundColor: Colors.dark.background,
                 },
               }}
-            >
-              <Stack.Screen
-                name="(tabs)"
-                options={{
-                  contentStyle: {
-                    backgroundColor: Colors.dark.background,
-                  },
-                }}
-              />
-            </Stack>
-          </QueryClientProvider>
-        </SQLiteProvider>
-      </UserContextProvider>
+            />
+          </Stack>
+        </QueryClientProvider>
+      </SQLiteProvider>
     </ThemeProvider>
   );
 }

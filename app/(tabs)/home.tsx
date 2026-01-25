@@ -3,9 +3,9 @@ import ScreenHug from "@/components/ScreenHug";
 import TabsContainer from "@/components/tab-container";
 import { filters, MangaDB } from "@/utils/types";
 import { Octicons } from "@expo/vector-icons";
-import { useFocusEffect } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import { useSQLiteContext } from "expo-sqlite";
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 
 export default function Home() {
@@ -14,6 +14,7 @@ export default function Home() {
   const [searchedTerm, setSearchedTerm] = useState("");
   const [filteredItems, setFilteredItems] = useState(filters);
   const [data, setData] = useState<MangaDB[]>([]);
+  const router = useRouter();
 
   useFocusEffect(
     useCallback(() => {
@@ -84,6 +85,20 @@ export default function Home() {
 
   //   data();
   // }, []);
+
+  useEffect(() => {
+    async function loadUsername() {
+      const name: string | null = await db.getFirstAsync(
+        `SELECT username FROM "user"`,
+      );
+
+      // console.log(name);
+      if (!name) {
+        router.replace("/");
+      }
+    }
+    loadUsername();
+  }, []);
 
   return (
     <>

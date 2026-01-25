@@ -2,7 +2,7 @@ import { useFilterStore } from "@/stores/category-store";
 import { getStatusFromName } from "@/utils/getStatus";
 import { UserFilter } from "@/utils/types";
 import React from "react";
-import { FlatList, TextStyle, ViewStyle } from "react-native";
+import { FlatList, ViewStyle } from "react-native";
 import Tab from "./tab";
 
 export default function TabsContainer({
@@ -17,7 +17,6 @@ export default function TabsContainer({
   const defaultBackgroundStyles: ViewStyle = {
     flexGrow: 0,
   };
-  const defaultTextStyles: TextStyle = {};
 
   /* useEffect(() => {
     console.log(filterKeyword);

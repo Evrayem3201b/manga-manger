@@ -40,6 +40,13 @@ export default function MangaTemplate({ id }: { id: string }) {
     return <ActivityIndicator size="large" color={Colors.dark.text} />;
   }
 
+  // useEffect(() => {
+  //   async function loadData() {
+  //     await db.runAsync(`DROP TABLE manga`);
+  //   }
+  //   loadData();
+  // }, []);
+
   const visibleGenres = expanded
     ? genres
     : genres?.slice(0, INITIAL_VISIBLE_TAGS);
@@ -63,13 +70,14 @@ export default function MangaTemplate({ id }: { id: string }) {
 
       await db.withTransactionAsync(async () => {
         await db.runAsync(
-          `INSERT OR REPLACE INTO manga (id, name, description, cover_url, status, year, rating, total_chap, current_chap, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          `INSERT OR REPLACE INTO manga (id, name, description, cover_url, cover_online_link, status, year, rating, total_chap, current_chap, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             data.id,
             data.name,
             data.description,
-            localUri, // Use the URI we just got!
+            localUri, // Use the URI we just got
+            data.coverUrl?.uri || null, // Store the online link
             data.status,
             data.year,
             data.rating ? parseFloat(data.rating) : null,
@@ -93,7 +101,7 @@ export default function MangaTemplate({ id }: { id: string }) {
 
       Alert.alert("Success", "Manga added to your library!");
     } catch (e) {
-      Alert.alert("Error", "Failed to add manga to library.");
+      Alert.alert("Error", "Failed to add manga to library." + e);
     }
   }
 
@@ -101,29 +109,26 @@ export default function MangaTemplate({ id }: { id: string }) {
     if (!data?.coverUrl.uri) return null;
 
     try {
-      // 1. Define where you want to go (Document directory is permanent)
-      // We create a folder named 'covers' inside the App's document storage
       const coversDir = new FileSystem.Directory(
         FileSystem.Paths.document,
         "covers",
       );
 
-      // 2. Ensure the directory exists (create it if it doesn't)
+      // 1. Ensure directory exists
       if (!coversDir.exists) {
-        coversDir.create();
+        await coversDir.create();
       }
 
-      // 3. Define the specific file destination
       const destinationFile = new FileSystem.File(coversDir, `${data.id}.jpg`);
 
-      // 4. Perform the download using the New API syntax
-      // Note: The new API usually takes the URL and the File object/path
+      // 2. Perform download with the idempotent flag
+      // Setting idempotent: true tells Expo to overwrite if the file exists
       const output = await FileSystem.File.downloadFileAsync(
         data.coverUrl.uri,
         destinationFile,
+        { idempotent: true },
       );
 
-      // 5. Save the local path (uri) to your state/DB
       setDownloadedImageUri(output.uri);
       return output.uri;
     } catch (error) {

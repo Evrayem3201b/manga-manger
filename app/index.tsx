@@ -1,22 +1,24 @@
 import { Colors } from "@/constants/theme";
-import { useUser } from "@/context/UserContext";
 import { styles as GlobalStyles } from "@/styles/globalStyles";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
+import { useSQLiteContext } from "expo-sqlite";
 import React, { useEffect, useState } from "react";
 import { Image, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 export default function Signup() {
   const insets = useSafeAreaInsets();
-  const { username, setUsername } = useUser();
-  const router = useRouter();
 
-  const [usernameInput, setUsernameInput] = useState("");
+  const router = useRouter();
+  const db = useSQLiteContext();
+
+  const [usernameInput, setUsernameInput] = useState<string | null>("");
 
   async function handleSignUpPress() {
     try {
-      await AsyncStorage.setItem("username", usernameInput);
+      await db.runAsync(`INSERT OR REPLACE INTO "user" (username) VALUES (?)`, [
+        usernameInput,
+      ]);
       router.push("/(tabs)/home");
     } catch (e) {
       alert("Error");
@@ -31,8 +33,11 @@ export default function Signup() {
   }, []) */
 
   async function loadUsername() {
-    let name = await AsyncStorage.getItem("username");
-    if (name !== null) {
+    const name: string | null = await db.getFirstAsync(
+      `SELECT username FROM "user"`,
+    );
+
+    if (name) {
       setUsernameInput(name);
       router.push("/(tabs)/home");
     }
@@ -78,7 +83,6 @@ export default function Signup() {
           value={usernameInput}
           onChangeText={(text) => {
             setUsernameInput(text);
-            setUsername(text); // 🔥 THIS updates context
           }}
         />
         <View style={{ width: "70%", paddingTop: 10 }}>

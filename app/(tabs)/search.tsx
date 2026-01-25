@@ -144,9 +144,11 @@ export default function Search() {
 
 const styles = StyleSheet.create({
   historyContainer: {
-    flex: 1,
-    width: "100%",
+    // flex: 1,
+    // width: "100%",
+    height: "100%",
     marginTop: 10,
+    alignItems: "flex-start",
   },
   container: {
     flex: 1,
@@ -179,7 +181,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "600",
     color: "#9b9ba1", // muted label
-    marginBottom: 12,
+    marginBottom: 10,
     paddingHorizontal: 4,
   },
 
@@ -187,7 +189,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
-    paddingVertical: 12,
+    paddingVertical: 10,
     paddingHorizontal: 6,
     borderRadius: 12,
   },
