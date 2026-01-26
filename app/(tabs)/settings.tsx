@@ -4,7 +4,6 @@ import { Ionicons } from "@expo/vector-icons";
 import * as DocumentPicker from "expo-document-picker";
 import { Directory, File, Paths } from "expo-file-system";
 import * as ImagePicker from "expo-image-picker";
-import * as Sharing from "expo-sharing";
 import { useSQLiteContext } from "expo-sqlite";
 import { openBrowserAsync } from "expo-web-browser";
 import React, { useEffect, useState } from "react";
@@ -130,7 +129,7 @@ export default function Settings() {
 
   async function databaseExport() {
     try {
-      // Access the SQLite folder using Paths utility
+      // 1. Reference the source database
       const dbFile = new File(Paths.document, "SQLite", "manga.db");
 
       if (!dbFile.exists) {
@@ -138,17 +137,30 @@ export default function Settings() {
         return;
       }
 
-      if (await Sharing.isAvailableAsync()) {
-        await Sharing.shareAsync(dbFile.uri, {
-          mimeType: "application/x-sqlite3",
-          dialogTitle: "Backup Database",
-        });
-      }
+      // 2. Open the system folder picker
+      const destinationFolder = await Directory.pickDirectoryAsync();
+      if (!destinationFolder) return;
+
+      // 3. Create the file entry in the selected directory
+      const backupFile = destinationFolder.createFile(
+        "manga_backup.db",
+        "application/x-sqlite3",
+      );
+
+      // 4. FIX: Use bytes() and write() instead of copy()
+      // This bypasses the Content URI limitation by streaming the data
+      const dbBytes = await dbFile.bytes();
+      await backupFile.write(dbBytes);
+
+      Alert.alert("Success", "Backup saved to your device!");
     } catch (e) {
-      Alert.alert("Export Error", "Could not access database.");
+      console.error(e);
+      Alert.alert(
+        "Export Error",
+        "The system blocked the file copy. Please try a different folder.",
+      );
     }
   }
-
   async function databaseImport() {
     try {
       const result = await DocumentPicker.getDocumentAsync({
