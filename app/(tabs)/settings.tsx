@@ -16,6 +16,7 @@ import {
   StyleSheet,
   Text,
   TextInput,
+  TextStyle,
   View,
   ViewStyle,
 } from "react-native";
@@ -123,8 +124,7 @@ export default function Settings() {
       setAvatarPath(avatarFile.uri);
       Alert.alert("Success", "Avatar updated!");
     } catch (e) {
-      Alert.alert(e);
-      Alert.alert("Error", "Failed to save image.");
+      Alert.alert("Error", "Failed to save image." + e);
     }
   }
 
@@ -184,7 +184,7 @@ export default function Settings() {
                 await new File(pickedFile.uri).copy(dbFile);
                 Alert.alert("Success", "Imported. Please restart the app.");
               } catch (err) {
-                Alert.alert(err);
+                Alert.alert(`${err}`);
                 Alert.alert("Error", "Import failed.");
               }
             },
@@ -318,7 +318,7 @@ const SettingItem = ({
   color: string;
   onPress?: () => void;
   style?: ViewStyle;
-  styleIcon?: ViewStyle;
+  styleIcon?: TextStyle;
   showChevron?: boolean;
 }) => (
   <Pressable

@@ -16,16 +16,27 @@
         "backgroundImage": "./assets/images/manga-manger-logo.jpg"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": true
+      "predictiveBackGestureEnabled": true,
+      "package": "com.evrayem100.mangamanger"
     },
     "web": {
       "output": "static",
       "favicon": "./assets/images/manga-manger-logo.jpg"
     },
-    "plugins": ["expo-asset", "expo-router", "expo-web-browser"],
+    "plugins": [
+      "expo-asset",
+      "expo-router",
+      "expo-web-browser"
+    ],
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "ed1b0bb3-127f-46aa-b234-835ddb7d5eb2"
+      }
     }
   }
 }

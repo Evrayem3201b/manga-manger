@@ -3,7 +3,14 @@ import { styles as GlobalStyles } from "@/styles/globalStyles";
 import { useRouter } from "expo-router";
 import { useSQLiteContext } from "expo-sqlite";
 import React, { useEffect, useState } from "react";
-import { Image, Text, TextInput, TouchableOpacity, View } from "react-native";
+import {
+  Alert,
+  Image,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 export default function Signup() {
@@ -12,7 +19,7 @@ export default function Signup() {
   const router = useRouter();
   const db = useSQLiteContext();
 
-  const [usernameInput, setUsernameInput] = useState<string | null>("");
+  const [usernameInput, setUsernameInput] = useState<string>("");
 
   async function handleSignUpPress() {
     try {
@@ -21,7 +28,7 @@ export default function Signup() {
       ]);
       router.push("/(tabs)/home");
     } catch (e) {
-      alert("Error");
+      Alert.alert("Error" + e);
     }
   }
   /* useEffect(() => {
