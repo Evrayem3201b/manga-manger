@@ -70,8 +70,8 @@ export default function MangaTemplate({ id }: { id: string }) {
 
       await db.withTransactionAsync(async () => {
         await db.runAsync(
-          `INSERT OR REPLACE INTO manga (id, name, description, cover_url, cover_online_link, status, year, rating, total_chap, current_chap, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          `INSERT OR REPLACE INTO manga (id, name, description, cover_url, cover_online_link, status, year, rating, total_chap, current_chap, is_adult, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             data.id,
             data.name,
@@ -83,6 +83,7 @@ export default function MangaTemplate({ id }: { id: string }) {
             data.rating ? parseFloat(data.rating) : null,
             data.totalChap ?? null,
             parseInt(query) || 0,
+            data.isAdult,
             Date.now(),
             Date.now(),
           ],
@@ -136,6 +137,7 @@ export default function MangaTemplate({ id }: { id: string }) {
       return null;
     }
   }
+
   return (
     <ScreenHug
       title={""}

@@ -5,7 +5,7 @@ const FALLBACK_COVER = require("@/assets/images/example-cover.webp");
 
 function buildCoverUrl(manga: MangaWithCover): string {
   const cover = manga.relationships.find(
-    (rel): rel is any => rel.type === "cover_art"
+    (rel): rel is any => rel.type === "cover_art",
   );
 
   if (!cover || !("attributes" in cover)) {
@@ -23,6 +23,7 @@ export function useMangaDetails(id: string) {
         description: string;
         year: number | null;
         rating: string | null;
+        isAdult: boolean | null;
       })
     | null = data
     ? {
@@ -39,8 +40,17 @@ export function useMangaDetails(id: string) {
           Object.values(data.attributes.description)[0] ||
           "No description available.",
         currentChap: 0,
-        year: data.attributes.year || null,
-        rating: data.attributes.contentRating || null,
+        year: data.attributes.year ?? undefined,
+        rating: data.attributes.contentRating ?? null,
+        isAdult:
+          data.attributes.tags?.some(
+            (tag) =>
+              tag.attributes?.name?.en?.toLowerCase() === "adult" ||
+              tag.attributes?.name?.en?.toLowerCase() === "hentai" ||
+              tag.attributes?.name?.en?.toLowerCase() === "erotica" ||
+              tag.attributes?.name?.en?.toLowerCase() === "sexual violence" ||
+              tag.attributes?.name?.en?.toLowerCase() === "nsfw",
+          ) ?? null,
       }
     : null;
   const genres = data ? data?.attributes.tags : null;

@@ -14,30 +14,49 @@ export default function Card({
   coverUrl,
   currentChap,
   search,
-}: SimpleDisplay & { search?: boolean }) {
+  isAdult,
+}: SimpleDisplay & { search?: boolean; isAdult?: boolean | number }) {
+  const shouldHideImage = !!isAdult;
+
   return (
     <View style={styles.cardContainer}>
       {/* IMAGE CONTAINER */}
       <View style={styles.imageWrapper}>
         <Badge status={getStatusFromName(status)} />
 
-        <Image
-          source={
-            coverUrl?.uri
-              ? { uri: coverUrl.uri }
-              : require("@/assets/images/example-cover.webp")
-          }
-          style={styles.image}
-          resizeMode="cover"
-        />
+        {!shouldHideImage ? (
+          <Image
+            source={
+              coverUrl?.uri
+                ? { uri: coverUrl.uri }
+                : require("@/assets/images/example-cover.webp")
+            }
+            style={[styles.image, StyleSheet.absoluteFill]}
+            resizeMode="cover"
+          />
+        ) : (
+          /* 2. CPU-Friendly Adult Placeholder */
+          <View style={[styles.adultPlaceholder, StyleSheet.absoluteFill]}>
+            <LinearGradient
+              colors={["#2c2c2e", "#1a1a1e"]}
+              style={StyleSheet.absoluteFill}
+            />
+            <View style={styles.warningCircle}>
+              <ThemedText style={styles.warningText}>18+</ThemedText>
+            </View>
+          </View>
+        )}
 
         {/* SUBTLE INNER BORDER (Makes the image pop) */}
         <View style={styles.innerBorder} />
 
-        <LinearGradient
-          colors={["transparent", "rgba(0,0,0,0.8)"]}
-          style={styles.gradient}
-        />
+        {/* Only show gradient on non-adult to keep the placeholder clean */}
+        {!shouldHideImage && (
+          <LinearGradient
+            colors={["transparent", "rgba(0,0,0,0.8)"]}
+            style={styles.gradient}
+          />
+        )}
       </View>
 
       {/* TEXT AREA */}
@@ -138,5 +157,26 @@ const styles = StyleSheet.create({
   totalLabel: {
     color: "#888",
     fontWeight: "500",
+  },
+
+  adultPlaceholder: {
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#1a1a1e",
+  },
+  warningCircle: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    borderWidth: 2,
+    borderColor: "rgba(255, 255, 255, 0.2)",
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "rgba(255, 255, 255, 0.05)",
+  },
+  warningText: {
+    color: "rgba(255, 255, 255, 0.6)",
+    fontSize: 18,
+    fontWeight: "800",
   },
 });

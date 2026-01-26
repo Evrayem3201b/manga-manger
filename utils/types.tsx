@@ -34,93 +34,94 @@ export type Filter = {
   title: string;
 };
 
-export const data: SimpleDisplay[] = [
-  {
-    id: "b1461071-bfbb-43e7-a5b6-a7ba5904649f",
-    name: "Martial Peak",
+// export const data: SimpleDisplay[] = [
+//   {
+//     id: "b1461071-bfbb-43e7-a5b6-a7ba5904649f",
+//     name: "Martial Peak",
 
-    status: "plan-to-read",
-    coverUrl: { uri: "@/assets/images/example-cover.webp" },
-    currentChap: 567,
-  },
-  {
-    id: "b1461071-bfbb-43e7-a5b6-a7ba5904649f",
-    name: "Martial Peak",
+//     status: "plan-to-read",
+//     coverUrl: { uri: "@/assets/images/example-cover.webp" },
+//     currentChap: 567,
+//   },
+//   {
+//     id: "b1461071-bfbb-43e7-a5b6-a7ba5904649f",
+//     name: "Martial Peak",
 
-    status: "plan-to-read",
-    coverUrl: { uri: "@/assets/images/example-cover.webp" },
-    currentChap: 567,
-  },
-  {
-    id: "b1461071-bfbb-43e7-a5b6-a7ba5904649f",
-    name: "Martial Peak",
+//     status: "plan-to-read",
+//     coverUrl: { uri: "@/assets/images/example-cover.webp" },
+//     currentChap: 567,
+//   },
+//   {
+//     id: "b1461071-bfbb-43e7-a5b6-a7ba5904649f",
+//     name: "Martial Peak",
 
-    status: "plan-to-read",
-    coverUrl: { uri: "@/assets/images/example-cover.webp" },
-    currentChap: 567,
-  },
-  {
-    id: "a1c7c817-4e59-43b7-9365-09675a149a6f",
-    name: "One Piece",
-    totalChap: 982,
-    status: "favorites",
-    coverUrl: { uri: "@/assets/images/example-cover.webp" },
-    currentChap: 567,
-  },
-  {
-    id: "a1c7c817-4e59-43b7-9365-09675a149a6f",
-    name: "One Piece",
-    totalChap: 982,
-    status: "favorites",
-    coverUrl: { uri: "@/assets/images/example-cover.webp" },
-    currentChap: 567,
-  },
-  {
-    id: "a1c7c817-4e59-43b7-9365-09675a149a6f",
-    name: "One Piece",
-    totalChap: 982,
-    status: "favorites",
-    coverUrl: { uri: "@/assets/images/example-cover.webp" },
-    currentChap: 567,
-  },
+//     status: "plan-to-read",
+//     coverUrl: { uri: "@/assets/images/example-cover.webp" },
+//     currentChap: 567,
+//   },
+//   {
+//     id: "a1c7c817-4e59-43b7-9365-09675a149a6f",
+//     name: "One Piece",
+//     totalChap: 982,
+//     status: "favorites",
+//     coverUrl: { uri: "@/assets/images/example-cover.webp" },
+//     currentChap: 567,
+//   },
+//   {
+//     id: "a1c7c817-4e59-43b7-9365-09675a149a6f",
+//     name: "One Piece",
+//     totalChap: 982,
+//     status: "favorites",
+//     coverUrl: { uri: "@/assets/images/example-cover.webp" },
+//     currentChap: 567,
+//   },
+//   {
+//     id: "a1c7c817-4e59-43b7-9365-09675a149a6f",
+//     name: "One Piece",
+//     totalChap: 982,
+//     status: "favorites",
+//     coverUrl: { uri: "@/assets/images/example-cover.webp" },
+//     currentChap: 567,
+//   },
 
-  {
-    id: "a1c7c817-4e59-43b7-9365-09675a149a6f",
-    name: "One Piece",
-    totalChap: 982,
-    status: "hiatus",
-    coverUrl: { uri: "@/assets/images/example-cover.webp" },
-    currentChap: 567,
-  },
-  {
-    id: "a1c7c817-4e59-43b7-9365-09675a149a6f",
-    name: "One Piece",
-    totalChap: 982,
-    status: "ongoing",
-    coverUrl: { uri: "@/assets/images/example-cover.webp" },
-    currentChap: 567,
-  },
-  {
-    id: "a1c7c817-4e59-43b7-9365-09675a149a6f",
-    name: "One Piece",
-    totalChap: 982,
-    status: "cancelled",
-    coverUrl: { uri: "@/assets/images/example-cover.webp" },
-    currentChap: 567,
-  },
-  {
-    id: "a1c7c817-4e59-43b7-9365-09675a149a6f",
-    name: "One Piece",
-    totalChap: 982,
-    status: "cancelled",
-    coverUrl: { uri: "@/assets/images/example-cover.webp" },
-    currentChap: 567,
-  },
-];
+//   {
+//     id: "a1c7c817-4e59-43b7-9365-09675a149a6f",
+//     name: "One Piece",
+//     totalChap: 982,
+//     status: "hiatus",
+//     coverUrl: { uri: "@/assets/images/example-cover.webp" },
+//     currentChap: 567,
+//   },
+//   {
+//     id: "a1c7c817-4e59-43b7-9365-09675a149a6f",
+//     name: "One Piece",
+//     totalChap: 982,
+//     status: "ongoing",
+//     coverUrl: { uri: "@/assets/images/example-cover.webp" },
+//     currentChap: 567,
+//   },
+//   {
+//     id: "a1c7c817-4e59-43b7-9365-09675a149a6f",
+//     name: "One Piece",
+//     totalChap: 982,
+//     status: "cancelled",
+//     coverUrl: { uri: "@/assets/images/example-cover.webp" },
+//     currentChap: 567,
+//   },
+//   {
+//     id: "a1c7c817-4e59-43b7-9365-09675a149a6f",
+//     name: "One Piece",
+//     totalChap: 982,
+//     status: "cancelled",
+//     coverUrl: { uri: "@/assets/images/example-cover.webp" },
+//     currentChap: 567,
+//   },
+// ];
 
 export type LanguageMap = Record<string, string>;
 
 export type SimpleDisplay = {
+  isAdult: boolean;
   id: string;
   name: string;
   totalChap?: number;
@@ -148,6 +149,7 @@ export type MangaDB = {
   reading_link: string;
   updated_at: number;
   year: number;
+  is_adult: number | boolean;
 };
 
 export type MangaCategory =

@@ -53,7 +53,8 @@ CREATE TABLE IF NOT EXISTS manga (
   current_chap INTEGER DEFAULT 0,
   reading_link TEXT,
   created_at INTEGER,
-  updated_at INTEGER
+  updated_at INTEGER,
+  is_adult BOOLEAN DEFAULT FALSE
 );
 
 CREATE TABLE IF NOT EXISTS manga_genres (

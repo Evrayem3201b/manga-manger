@@ -251,7 +251,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.08)",
     marginBottom: 16,
-    marginHorizontal: 16,
+    // marginHorizontal: 16,
   },
   input: {
     flex: 1,

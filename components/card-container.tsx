@@ -11,7 +11,7 @@ const cardWidth = 170;
 const numColumns = Math.floor(width / cardWidth);
 interface Props {
   search?: boolean;
-  mangaSimple: SimpleDisplay[];
+  mangaSimple: SimpleDisplay[] & { isAdult?: boolean }[];
   style?: ViewStyle;
 }
 
@@ -63,7 +63,7 @@ export default function CardContainer({ mangaSimple, search, style }: Props) {
           }
         >
           <View style={{ width: width / numColumns, paddingVertical: 10 }}>
-            <Card {...item} search={search} />
+            <Card {...item} isAdult={item.isAdult} search={search} />
           </View>
         </Pressable>
       )}

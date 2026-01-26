@@ -127,6 +127,7 @@ export default function Home() {
               status: item.status,
               coverUrl: { uri: item.cover_url },
               currentChap: item.current_chap,
+              isAdult: item.is_adult === 1 ? true : false,
             }))}
           />
         )}

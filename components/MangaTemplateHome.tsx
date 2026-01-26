@@ -35,6 +35,7 @@ export default function MangaTemplate({ id }: { id: string }) {
         description: string;
         year: number | null;
         rating: string | null;
+        isAdult?: number | boolean | null;
       })
     | null
   >(null);
@@ -90,6 +91,7 @@ export default function MangaTemplate({ id }: { id: string }) {
             rating: String(mangaRecord.rating),
             currentChap: mangaRecord.current_chap,
             readingLink: mangaRecord.reading_link,
+            isAdult: mangaRecord.is_adult === 1 ? true : false,
           });
 
           setQuery(String(mangaRecord.current_chap || "0"));
@@ -154,14 +156,14 @@ export default function MangaTemplate({ id }: { id: string }) {
     handleImageDownload();
   }, [id]);
 
-  useEffect(() => {
-    async function handleImageDownload() {
-      console.log(
-        await db.getFirstAsync(`SELECT * FROM manga WHERE id = ?`, [id]),
-      );
-    }
-    handleImageDownload();
-  }, []);
+  // useEffect(() => {
+  //   async function handleImageDownload() {
+  //     console.log(
+  //       await db.getFirstAsync(`SELECT * FROM manga WHERE id = ?`, [id]),
+  //     );
+  //   }
+  //   handleImageDownload();
+  // }, []);
 
   if (isLoading) {
     return <ActivityIndicator size="large" color={Colors.dark.text} />;

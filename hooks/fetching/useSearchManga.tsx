@@ -21,18 +21,29 @@ export function useSearchManga(query: string, limit = 20, offset = 0) {
   const { data, isLoading, isFetching } = useSearchData(query, limit, offset);
 
   // Since data is { results: Manga[], total: number } or undefined
-  const results: SimpleDisplay[] = (data?.results ?? []).map((manga) => ({
-    id: manga.id,
-    name:
-      manga.attributes.title.en ??
-      Object.values(manga.attributes.title)[0] ??
-      "Unknown",
-    status: manga.attributes.status,
-    coverUrl: buildCoverUrl(manga),
-    // MangaDex uses strings for chapter numbers; handle properly
-    totalChap: parseInt(manga.attributes.lastChapter || "0", 10),
-    currentChap: 0,
-  }));
+  const results: SimpleDisplay[] = (data?.results ?? []).map(
+    (manga: Manga) => ({
+      id: manga.id,
+      name:
+        manga.attributes.title.en ??
+        Object.values(manga.attributes.title)[0] ??
+        "Unknown",
+      status: manga.attributes.status,
+      coverUrl: buildCoverUrl(manga),
+      // MangaDex uses strings for chapter numbers; handle properly
+      totalChap: parseInt(manga.attributes.lastChapter || "0", 10),
+      currentChap: 0,
+      isAdult:
+        manga.attributes.tags?.some(
+          (tag) =>
+            tag.attributes?.name?.en?.toLowerCase() === "adult" ||
+            tag.attributes?.name?.en?.toLowerCase() === "hentai" ||
+            tag.attributes?.name?.en?.toLowerCase() === "erotica" ||
+            tag.attributes?.name?.en?.toLowerCase() === "sexual violence" ||
+            tag.attributes?.name?.en?.toLowerCase() === "nsfw",
+        ) || false,
+    }),
+  );
 
   return {
     results,
