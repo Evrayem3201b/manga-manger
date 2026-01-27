@@ -13,6 +13,7 @@ import {
   Alert,
   Image,
   Linking,
+  Platform,
   Pressable,
   StyleSheet,
   Text,
@@ -289,7 +290,7 @@ export default function MangaTemplate({ id }: { id: string }) {
       <View style={{ position: "relative" }}>
         <Badge status={getStatusFromName(data?.status || "ongoing")} />
 
-        {/* Action Column overlay on the right of the image */}
+        {/* Action Column remains the same */}
         <View style={styles.floatingActionColumn}>
           <Pressable
             style={[
@@ -324,20 +325,43 @@ export default function MangaTemplate({ id }: { id: string }) {
           </Pressable>
         </View>
 
-        <Image
-          source={
-            data?.coverUrl ??
-            downloadedImageUri ??
-            require("@/assets/images/example-cover.webp")
-          }
-          style={{ width: 250, height: 350, borderRadius: 25 }}
-        />
-        <LinearGradient
-          colors={["rgba(0,0,0,0.75)", "rgba(0,0,0,0.0)"]}
-          start={{ x: 0.5, y: 1 }}
-          end={{ x: 0.5, y: 0.8 }}
-          style={{ ...StyleSheet.absoluteFillObject, borderRadius: 25 }}
-        />
+        <View style={styles.mangaImageWrapper}>
+          {data?.coverUrl?.uri || downloadedImageUri ? (
+            <Image
+              source={
+                data?.coverUrl?.uri
+                  ? data.coverUrl
+                  : { uri: downloadedImageUri! }
+              }
+              style={styles.mangaImage}
+            />
+          ) : (
+            /* --- BEAUTIFUL PLACEHOLDER --- */
+            <View style={[styles.mangaImage, styles.placeholderContainer]}>
+              <LinearGradient
+                colors={["#232526", "#414345"]}
+                style={StyleSheet.absoluteFill}
+              />
+              <View style={styles.placeholderContent}>
+                <Ionicons
+                  name="book-outline"
+                  size={60}
+                  color="rgba(255,255,255,0.15)"
+                />
+                <Text style={styles.placeholderText} numberOfLines={3}>
+                  {data?.name || "Manga Title"}
+                </Text>
+              </View>
+              <View style={styles.placeholderEdge} />
+            </View>
+          )}
+          <LinearGradient
+            colors={["rgba(0,0,0,0.75)", "rgba(0,0,0,0.0)"]}
+            start={{ x: 0.5, y: 1 }}
+            end={{ x: 0.5, y: 0.8 }}
+            style={StyleSheet.absoluteFillObject}
+          />
+        </View>
       </View>
 
       <Text
@@ -709,5 +733,51 @@ const styles = StyleSheet.create({
   openIconWrapper: {
     padding: 10, // Increase the hit-box of the open icon
     marginRight: -10, // Pull it back to alignment
+  },
+
+  mangaImageWrapper: {
+    width: 250,
+    height: 350,
+    borderRadius: 25,
+    overflow: "hidden",
+    elevation: 10,
+    shadowColor: "#000",
+    shadowOpacity: 0.5,
+    shadowRadius: 10,
+    backgroundColor: "#1a1a1e",
+  },
+  mangaImage: {
+    width: "100%",
+    height: "100%",
+    borderRadius: 25,
+  },
+  placeholderContainer: {
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  placeholderContent: {
+    alignItems: "center",
+    paddingHorizontal: 20,
+    zIndex: 2,
+  },
+  placeholderText: {
+    color: "rgba(255,255,255,0.4)",
+    fontSize: 20,
+    fontWeight: "800",
+    textAlign: "center",
+    fontFamily: Platform.OS === "ios" ? "Georgia" : "serif",
+    fontStyle: "italic",
+    textTransform: "uppercase",
+    marginTop: 10,
+  },
+  placeholderEdge: {
+    position: "absolute",
+    left: 0,
+    top: 0,
+    bottom: 0,
+    width: 15,
+    backgroundColor: "rgba(255,255,255,0.03)",
+    borderRightWidth: 1,
+    borderRightColor: "rgba(0,0,0,0.2)",
   },
 });

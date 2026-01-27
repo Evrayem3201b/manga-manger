@@ -1,6 +1,7 @@
 import CardContainer from "@/components/card-container";
 import ScreenHug from "@/components/ScreenHug";
 import TabsContainer from "@/components/tab-container";
+import { Colors } from "@/constants/theme";
 import { filters, MangaDB } from "@/utils/types";
 import { Octicons } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
@@ -137,18 +138,36 @@ export default function Home() {
 }
 
 const styles = StyleSheet.create({
+  fab: {
+    position: "absolute",
+    bottom: 30, // Adjust this based on your bottom tab bar height
+    right: 25,
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: Colors.dark.primary,
+    alignItems: "center",
+    justifyContent: "center",
+    // Shadow for iOS
+    shadowColor: Colors.dark.primary,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
+    // Elevation for Android
+    elevation: 10,
+  },
   emptyState: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
+    marginTop: -100, // Centers it visually within the remaining space
     gap: 12,
-    opacity: 0.85,
   },
-
   emptyText: {
     fontSize: 15,
-    color: "#8e8e93",
+    color: "#666",
     textAlign: "center",
-    maxWidth: 260,
+    maxWidth: 200,
+    fontFamily: "ls", // Use your custom font if available
   },
 });

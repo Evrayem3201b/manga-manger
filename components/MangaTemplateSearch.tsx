@@ -11,6 +11,7 @@ import {
   ActivityIndicator,
   Alert,
   Image,
+  Platform,
   Pressable,
   StyleSheet,
   Text,
@@ -150,21 +151,35 @@ export default function MangaTemplate({ id }: { id: string }) {
     >
       <View style={{ position: "relative" }}>
         <Badge status={getStatusFromName(data?.status || "ongoing")} />
-        <Image
-          source={
-            data?.coverUrl ?? require("@/assets/images/example-cover.webp")
-          }
-          style={{ width: 250, height: 350, borderRadius: 25 }}
-        />
-        <LinearGradient
-          colors={[
-            "rgba(0,0,0,0.75)", // bottom (black)
-            "rgba(0,0,0,0.0)", // top (transparent)
-          ]}
-          start={{ x: 0.5, y: 1 }}
-          end={{ x: 0.5, y: 0.8 }}
-          style={{ ...StyleSheet.absoluteFillObject }}
-        />
+        <View style={styles.mangaImageWrapper}>
+          {data?.coverUrl?.uri ? (
+            <Image source={data.coverUrl} style={styles.mangaImage} />
+          ) : (
+            <View style={[styles.mangaImage, styles.placeholderContainer]}>
+              <LinearGradient
+                colors={["#1e1e24", "#44318d"]} // A slightly more "magic/fantasy" purple for discovery
+                style={StyleSheet.absoluteFill}
+              />
+              <View style={styles.placeholderContent}>
+                <Ionicons
+                  name="library-outline"
+                  size={60}
+                  color="rgba(255,255,255,0.15)"
+                />
+                <Text style={styles.placeholderText}>
+                  {data?.name || "Loading..."}
+                </Text>
+              </View>
+              <View style={styles.placeholderEdge} />
+            </View>
+          )}
+          <LinearGradient
+            colors={["rgba(0,0,0,0.75)", "rgba(0,0,0,0.0)"]}
+            start={{ x: 0.5, y: 1 }}
+            end={{ x: 0.5, y: 0.8 }}
+            style={StyleSheet.absoluteFillObject}
+          />
+        </View>
       </View>
 
       <Text
@@ -384,5 +399,50 @@ const styles = StyleSheet.create({
     color: Colors.dark.primary,
     fontWeight: "700",
     marginTop: -5,
+  },
+  mangaImageWrapper: {
+    width: 250,
+    height: 350,
+    borderRadius: 25,
+    overflow: "hidden",
+    elevation: 10,
+    shadowColor: "#000",
+    shadowOpacity: 0.5,
+    shadowRadius: 10,
+    backgroundColor: "#1a1a1e",
+  },
+  mangaImage: {
+    width: "100%",
+    height: "100%",
+    borderRadius: 25,
+  },
+  placeholderContainer: {
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  placeholderContent: {
+    alignItems: "center",
+    paddingHorizontal: 20,
+    zIndex: 2,
+  },
+  placeholderText: {
+    color: "rgba(255,255,255,0.4)",
+    fontSize: 20,
+    fontWeight: "800",
+    textAlign: "center",
+    fontFamily: Platform.OS === "ios" ? "Georgia" : "serif",
+    fontStyle: "italic",
+    textTransform: "uppercase",
+    marginTop: 10,
+  },
+  placeholderEdge: {
+    position: "absolute",
+    left: 0,
+    top: 0,
+    bottom: 0,
+    width: 15,
+    backgroundColor: "rgba(255,255,255,0.03)",
+    borderRightWidth: 1,
+    borderRightColor: "rgba(0,0,0,0.2)",
   },
 });

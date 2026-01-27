@@ -1,9 +1,10 @@
 import { Colors } from "@/constants/theme";
 import { getStatusFromName } from "@/utils/getStatus";
 import { SimpleDisplay } from "@/utils/types";
+import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import React from "react";
-import { Image, StyleSheet, View } from "react-native";
+import { Image, Platform, StyleSheet, Text, View } from "react-native";
 import Badge from "./badge";
 import { ThemedText } from "./themed-text";
 
@@ -20,38 +21,53 @@ export default function Card({
 
   return (
     <View style={styles.cardContainer}>
-      {/* IMAGE CONTAINER */}
       <View style={styles.imageWrapper}>
         <Badge status={getStatusFromName(status)} />
 
-        {!shouldHideImage ? (
-          <Image
-            source={
-              coverUrl?.uri
-                ? { uri: coverUrl.uri }
-                : require("@/assets/images/example-cover.webp")
-            }
-            style={[styles.image, StyleSheet.absoluteFill]}
-            resizeMode="cover"
-          />
-        ) : (
-          /* 2. CPU-Friendly Adult Placeholder */
-          <View style={[styles.adultPlaceholder, StyleSheet.absoluteFill]}>
+        {/* --- IMAGE / PLACEHOLDER LOGIC --- */}
+        {shouldHideImage ? (
+          /* 1. Adult Placeholder */
+          <View style={[styles.image, styles.adultPlaceholder]}>
             <LinearGradient
-              colors={["#2c2c2e", "#1a1a1e"]}
+              colors={["#2c1a1a", "#1a1a1e"]} // Darker reddish tint for 18+
               style={StyleSheet.absoluteFill}
             />
             <View style={styles.warningCircle}>
               <ThemedText style={styles.warningText}>18+</ThemedText>
             </View>
           </View>
+        ) : coverUrl?.uri ? (
+          /* 2. Normal Image */
+          <Image
+            source={{ uri: coverUrl.uri }}
+            style={[styles.image, StyleSheet.absoluteFill]}
+            resizeMode="cover"
+          />
+        ) : (
+          /* 3. Safe Missing Image Placeholder */
+          <View style={[styles.image, styles.placeholderContainer]}>
+            <LinearGradient
+              colors={["#232526", "#414345"]}
+              style={StyleSheet.absoluteFill}
+            />
+            <View style={styles.placeholderContent}>
+              <Ionicons
+                name="book-outline"
+                size={60}
+                color="rgba(255,255,255,0.15)"
+              />
+              <Text style={styles.placeholderText} numberOfLines={2}>
+                {name}
+              </Text>
+            </View>
+            <View style={styles.placeholderEdge} />
+          </View>
         )}
 
-        {/* SUBTLE INNER BORDER (Makes the image pop) */}
         <View style={styles.innerBorder} />
 
-        {/* Only show gradient on non-adult to keep the placeholder clean */}
-        {!shouldHideImage && (
+        {/* Gradient only for visible images */}
+        {!shouldHideImage && coverUrl?.uri && (
           <LinearGradient
             colors={["transparent", "rgba(0,0,0,0.8)"]}
             style={styles.gradient}
@@ -64,11 +80,10 @@ export default function Card({
         <ThemedText
           lightColor={Colors.dark.text}
           style={styles.title}
-          numberOfLines={2} // Better for long manga titles
+          numberOfLines={1}
         >
           {name}
         </ThemedText>
-
         <View style={styles.infoRow}>
           <ThemedText style={styles.chapterText}>
             {search ? (
@@ -94,6 +109,36 @@ export default function Card({
 }
 
 const styles = StyleSheet.create({
+  placeholderContainer: {
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#1a1a1e",
+  },
+  placeholderContent: {
+    alignItems: "center",
+    paddingHorizontal: 10,
+    zIndex: 2,
+  },
+  placeholderText: {
+    color: "rgba(255,255,255,0.3)",
+    fontSize: 14, // Smaller for Card
+    fontWeight: "800",
+    textAlign: "center",
+    fontFamily: Platform.OS === "ios" ? "Georgia" : "serif",
+    fontStyle: "italic",
+    textTransform: "uppercase",
+  },
+  placeholderEdge: {
+    position: "absolute",
+    left: 0,
+    top: 0,
+    bottom: 0,
+    width: 10, // Thinner for Card
+    backgroundColor: "rgba(255,255,255,0.03)",
+    borderRightWidth: 1,
+    borderRightColor: "rgba(0,0,0,0.2)",
+  },
+
   cardContainer: {
     width: 165, // Slightly narrower for better gutter spacing
     marginBottom: 15,
