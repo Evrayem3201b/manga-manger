@@ -20,6 +20,7 @@ import {
   TextInput,
   View,
 } from "react-native";
+import Markdown from "react-native-markdown-display";
 import Badge from "./badge";
 import ScreenHug from "./ScreenHug";
 import Tag from "./tag";
@@ -441,21 +442,40 @@ export default function MangaTemplate({ id }: { id: string }) {
         )}
       </View>
 
-      <Pressable
-        onPress={() => setExpandedText(!expandedText)}
-        style={{ marginTop: 20, width: "90%" }}
-      >
-        <Text
-          numberOfLines={expandedText ? undefined : 2}
+      <View style={{ marginTop: 20, width: "90%" }}>
+        <View
           style={{
-            color: Colors.dark.mutedForeground,
-            fontSize: 14,
-            lineHeight: 20,
+            maxHeight: expandedText ? undefined : 60,
+            overflow: "hidden",
           }}
         >
-          {data?.description}
-        </Text>
-      </Pressable>
+          <Markdown
+            style={styles.markdown}
+            onLinkPress={(url) => {
+              // We handle the promise internally using .catch
+              Linking.openURL(url).catch((err) =>
+                Alert.alert("Error", "Could not open link"),
+              );
+
+              // Return true to indicate the link was handled,
+              // or false to let the default handler run.
+              // Most users prefer returning false here.
+              return false;
+            }}
+          >
+            {data?.description || "No description available."}
+          </Markdown>
+        </View>
+
+        <Pressable
+          onPress={() => setExpandedText(!expandedText)}
+          style={{ paddingVertical: 8 }}
+        >
+          <ThemedText style={{ color: Colors.dark.primary, fontWeight: "700" }}>
+            {expandedText ? "SHOW LESS ↑" : "SHOW MORE ↓"}
+          </ThemedText>
+        </Pressable>
+      </View>
       {/* --- CHAPTER SECTION --- */}
       <View style={{ marginTop: 40, width: "90%", alignItems: "center" }}>
         <ThemedText style={styles.sectionTitle}>Current Progress</ThemedText>
@@ -780,4 +800,62 @@ const styles = StyleSheet.create({
     borderRightWidth: 1,
     borderRightColor: "rgba(0,0,0,0.2)",
   },
+  markdown: {
+    // Standard text
+    body: {
+      color: Colors.dark.mutedForeground,
+      fontSize: 14,
+      lineHeight: 22,
+      fontFamily: "poppins", // Matches your card font
+    },
+    // Headers (# Header)
+    heading1: {
+      color: "#ffffff",
+      fontSize: 24,
+      fontWeight: "800",
+      marginVertical: 10,
+    },
+    heading2: {
+      color: "#ffffff",
+      fontSize: 20,
+      fontWeight: "700",
+      marginVertical: 8,
+    },
+    // Bold (**text**)
+    strong: {
+      color: "#ffffff",
+      fontWeight: "bold",
+    },
+    // Italics (*text*)
+    em: {
+      fontStyle: "italic",
+    },
+    // Links ([text](url))
+    link: {
+      color: Colors.dark.primary,
+      textDecorationLine: "underline",
+    },
+    // List items
+    bullet_list: {
+      marginVertical: 10,
+    },
+    list_item: {
+      flexDirection: "row",
+      justifyContent: "flex-start",
+    },
+    // Horizontal rule (---)
+    hr: {
+      backgroundColor: "rgba(255,255,255,0.1)",
+      height: 1,
+      marginVertical: 15,
+    },
+
+    // Code blocks (backticks)
+    code_inline: {
+      backgroundColor: "#2c2c2e",
+      color: Colors.dark.primary,
+      padding: 4,
+      borderRadius: 4,
+    },
+  } as any,
 });
