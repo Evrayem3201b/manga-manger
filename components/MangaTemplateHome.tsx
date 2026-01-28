@@ -1,9 +1,7 @@
 import { Colors } from "@/constants/theme";
-import { getBadgeColor as BadgeData } from "@/utils/BadgeData";
 import { getStatusFromName } from "@/utils/getStatus";
 import { MangaDB, SimpleDisplay, Tag as TagType } from "@/utils/types";
-import { Ionicons, Octicons } from "@expo/vector-icons";
-import * as FileSystem from "expo-file-system";
+import { Ionicons, MaterialCommunityIcons, Octicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import { useSQLiteContext } from "expo-sqlite";
@@ -51,6 +49,8 @@ export default function MangaTemplate({ id }: { id: string }) {
   const [downloadedImageUri, setDownloadedImageUri] = useState<string | null>(
     null,
   );
+  const [isPinned, setIsPinned] = useState(false);
+  const [inQueue, setInQueue] = useState(false);
 
   const db = useSQLiteContext();
   const router = useRouter();
@@ -82,6 +82,8 @@ export default function MangaTemplate({ id }: { id: string }) {
         setIsPlanToRead(!!planToReadRecord);
 
         if (mangaRecord) {
+          setIsPinned(mangaRecord.is_pinned === 1);
+          setInQueue((mangaRecord.queue_order ?? 0) > 0);
           setData({
             name: mangaRecord.name,
             id: mangaRecord.id,
@@ -94,6 +96,7 @@ export default function MangaTemplate({ id }: { id: string }) {
             currentChap: mangaRecord.current_chap,
             readingLink: mangaRecord.reading_link,
             isAdult: mangaRecord.is_adult === 1 ? true : false,
+            coverOnlineLink: mangaRecord.cover_online_link,
           });
 
           setQuery(String(mangaRecord.current_chap || "0"));
@@ -117,45 +120,6 @@ export default function MangaTemplate({ id }: { id: string }) {
       }
     }
     fetchManga();
-  }, [id]);
-
-  useEffect(() => {
-    async function handleImageDownload() {
-      if (!data?.coverUrl.uri) return null;
-      if (!data.coverUrl.uri) {
-        try {
-          const coversDir = new FileSystem.Directory(
-            FileSystem.Paths.document,
-            "covers",
-          );
-
-          // 1. Ensure directory exists
-          if (!coversDir.exists) {
-            await coversDir.create();
-          }
-
-          const destinationFile = new FileSystem.File(
-            coversDir,
-            `${data.id}.jpg`,
-          );
-
-          // 2. Perform download with the idempotent flag
-          // Setting idempotent: true tells Expo to overwrite if the file exists
-          const output = await FileSystem.File.downloadFileAsync(
-            data.coverUrl.uri,
-            destinationFile,
-            { idempotent: true },
-          );
-
-          setDownloadedImageUri(output.uri);
-          return output.uri;
-        } catch (error) {
-          Alert.alert("New API Download Error:" + error);
-          return null;
-        }
-      }
-    }
-    handleImageDownload();
   }, [id]);
 
   // useEffect(() => {
@@ -218,7 +182,7 @@ export default function MangaTemplate({ id }: { id: string }) {
       await db.runAsync(`DELETE FROM manga WHERE id = ?`, [id]);
       // Alert.alert("Deleted", "Manga removed from your library.");
       // Optionally, navigate back or refresh the list
-      router.replace("/(tabs)/home");
+      router.replace("/(tabs)/homeNew");
     } catch (e) {
       Alert.alert("Error", "Failed to delete manga.");
     }
@@ -278,6 +242,48 @@ export default function MangaTemplate({ id }: { id: string }) {
     }
   };
 
+  const toggleQueue = async () => {
+    try {
+      if (inQueue) {
+        await db.runAsync("UPDATE manga SET queue_order = 0 WHERE id = ?", [
+          id,
+        ]);
+        setInQueue(false);
+      } else {
+        const maxOrder: any = await db.getFirstAsync(
+          "SELECT MAX(queue_order) as maxO FROM manga",
+        );
+        const nextOrder = (maxOrder?.maxO || 0) + 1;
+        await db.runAsync("UPDATE manga SET queue_order = ? WHERE id = ?", [
+          nextOrder,
+          id,
+        ]);
+        setInQueue(true);
+      }
+    } catch (e) {
+      Alert.alert("Error", "Failed to update queue.");
+    }
+  };
+  const togglePin = async () => {
+    try {
+      const pinnedCount: any = await db.getFirstAsync(
+        "SELECT COUNT(*) as count FROM manga WHERE is_pinned = 1",
+      );
+      if (!isPinned && pinnedCount.count >= 5) {
+        Alert.alert("Limit Reached", "You can only pin up to 5 manga.");
+        return;
+      }
+      const newValue = !isPinned;
+      await db.runAsync("UPDATE manga SET is_pinned = ? WHERE id = ?", [
+        newValue ? 1 : 0,
+        id,
+      ]);
+      setIsPinned(newValue);
+    } catch (e) {
+      Alert.alert("Error", "Failed to update pin.");
+    }
+  };
+
   return (
     <ScreenHug
       title={""}
@@ -290,18 +296,33 @@ export default function MangaTemplate({ id }: { id: string }) {
     >
       <View style={{ position: "relative" }}>
         <Badge status={getStatusFromName(data?.status || "ongoing")} />
-
-        {/* Action Column remains the same */}
+        {/* REPLACED: NEW CONTROL HUB */}
         <View style={styles.floatingActionColumn}>
           <Pressable
-            style={[
-              styles.floatingActionBtn,
-              {
-                backgroundColor: `${BadgeData("favorites")?.badgeBackgroundColor}`,
-              },
-            ]}
-            onPress={() => toggleFavorite()}
+            style={[styles.actionBtn, isPinned && styles.btnPinned]}
+            onPress={togglePin}
           >
+            <MaterialCommunityIcons
+              name={isPinned ? "pin" : "pin-outline"}
+              size={22}
+              color={isPinned ? "#000" : "#fff"}
+            />
+          </Pressable>
+
+          <Pressable
+            style={[styles.actionBtn, inQueue && styles.btnQueue]}
+            onPress={toggleQueue}
+          >
+            <MaterialCommunityIcons
+              name={inQueue ? "layers-triple" : "layers-outline"}
+              size={22}
+              color={inQueue ? "#000" : "#fff"}
+            />
+          </Pressable>
+
+          <View style={styles.actionDivider} />
+
+          <Pressable style={styles.actionBtn} onPress={toggleFavorite}>
             <Ionicons
               name={isFavorite ? "heart" : "heart-outline"}
               size={24}
@@ -309,15 +330,7 @@ export default function MangaTemplate({ id }: { id: string }) {
             />
           </Pressable>
 
-          <Pressable
-            style={[
-              styles.floatingActionBtn,
-              {
-                backgroundColor: `${BadgeData("plan-to-read")?.badgeBackgroundColor}`,
-              },
-            ]}
-            onPress={() => togglePlanToRead()}
-          >
+          <Pressable style={styles.actionBtn} onPress={togglePlanToRead}>
             <Ionicons
               name={isPlanToRead ? "bookmark" : "bookmark-outline"}
               size={22}
@@ -645,22 +658,32 @@ const styles = StyleSheet.create({
   },
   floatingActionColumn: {
     position: "absolute",
-    right: 12,
-    top: 12,
-    zIndex: 10,
+    right: -60,
+    top: 20,
     gap: 10,
+    zIndex: 10,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    padding: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "#222",
   },
-  floatingActionBtn: {
+  actionBtn: {
     width: 44,
     height: 44,
-    borderRadius: 22,
-    backgroundColor: "#191919AA", // semi-transparent dark circle
+    borderRadius: 15,
+    backgroundColor: "#111",
     justifyContent: "center",
     alignItems: "center",
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.1)",
-    backdropFilter: "blur(10px)", // Works in some RN environments, otherwise just use opacity
+    borderColor: "#222",
   },
+  btnPinned: {
+    backgroundColor: Colors.dark.primary,
+    borderColor: Colors.dark.primary,
+  },
+  btnQueue: { backgroundColor: "#50fa7b", borderColor: "#50fa7b" },
+  actionDivider: { height: 1, backgroundColor: "#222", marginVertical: 4 },
 
   progressHeader: {
     flexDirection: "row",

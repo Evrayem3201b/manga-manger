@@ -1,10 +1,9 @@
-import { Colors } from "@/constants/theme";
 import { useFilterStore } from "@/stores/category-store";
 import { SimpleDisplay } from "@/utils/types";
-import { Octicons } from "@expo/vector-icons";
+import * as FileSystem from "expo-file-system";
 import { router } from "expo-router";
 import { useSQLiteContext } from "expo-sqlite";
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   Dimensions,
   FlatList,
@@ -14,16 +13,17 @@ import {
   ViewStyle,
 } from "react-native";
 import Card from "./card";
-import { ThemedText } from "./themed-text";
 
 const { width } = Dimensions.get("window");
-// Adjust cardWidth slightly to ensure margin/padding is accounted for
 const cardWidth = 175;
 const numColumns = Math.floor(width / cardWidth);
 
 interface Props {
   search?: boolean;
-  mangaSimple: SimpleDisplay[] & { isAdult?: boolean }[];
+  mangaSimple: (SimpleDisplay & {
+    isAdult?: boolean;
+    coverOnlineLink?: string;
+  })[];
   style?: ViewStyle;
 }
 
@@ -32,6 +32,99 @@ export default function CardContainer({ mangaSimple, search, style }: Props) {
   const filterKeyword = useFilterStore((state) => state.filter);
   const [favIds, setFavIds] = useState<string[]>([]);
   const [planIds, setPlanIds] = useState<string[]>([]);
+
+  const [localManga, setLocalManga] = useState(mangaSimple);
+  const [syncingIds, setSyncingIds] = useState<string[]>([]);
+  const isSyncingRef = useRef(false);
+
+  useEffect(() => {
+    setLocalManga(mangaSimple);
+    performSync();
+  }, [mangaSimple]);
+
+  const downloadItem = async (item: any, coversDir: FileSystem.Directory) => {
+    try {
+      setSyncingIds((prev) => [...prev, item.id]);
+
+      const destinationFile = new FileSystem.File(coversDir, `${item.id}.jpg`);
+
+      const output = await FileSystem.File.downloadFileAsync(
+        item.coverOnlineLink,
+        destinationFile,
+        { idempotent: true },
+      );
+
+      await db.runAsync(`UPDATE manga SET cover_url = ? WHERE id = ?`, [
+        output.uri,
+        item.id,
+      ]);
+
+      setLocalManga((prev) =>
+        prev.map((m) =>
+          m.id === item.id ? { ...m, coverUrl: { uri: output.uri } } : m,
+        ),
+      );
+      return true; // Success
+    } catch (e) {
+      console.error(`Download failed for ${item.name}:`, e);
+      return false; // Failed
+    } finally {
+      setSyncingIds((prev) => prev.filter((id) => id !== item.id));
+    }
+  };
+
+  const performSync = async () => {
+    if (isSyncingRef.current || search) return;
+    isSyncingRef.current = true;
+
+    const failedItems: typeof mangaSimple = [];
+
+    try {
+      const coversDir = new FileSystem.Directory(
+        FileSystem.Paths.document,
+        "covers",
+      );
+      if (!coversDir.exists) await coversDir.create();
+
+      // --- FIRST PASS ---
+      for (const item of mangaSimple) {
+        const isRemote = item.coverUrl?.uri?.startsWith("http");
+        const hasPath = !!item.coverUrl?.uri;
+        let needsDownload = false;
+
+        if (isRemote || !hasPath) {
+          needsDownload = true;
+        } else {
+          const file = new FileSystem.File(coversDir, `${item.id}.jpg`);
+          if (!file.exists) {
+            await db.runAsync(
+              `UPDATE manga SET cover_url = NULL WHERE id = ?`,
+              [item.id],
+            );
+            needsDownload = true;
+          }
+        }
+
+        if (needsDownload && item.coverOnlineLink) {
+          const success = await downloadItem(item, coversDir);
+          if (!success) failedItems.push(item);
+        }
+      }
+
+      // --- RETRY PASS (If there are failed items) ---
+      if (failedItems.length > 0) {
+        console.log(`Retrying ${failedItems.length} failed downloads...`);
+        // Optional: Wait 2 seconds before retrying
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+
+        for (const item of failedItems) {
+          await downloadItem(item, coversDir);
+        }
+      }
+    } finally {
+      isSyncingRef.current = false;
+    }
+  };
 
   useEffect(() => {
     async function fetchLibrary() {
@@ -45,52 +138,25 @@ export default function CardContainer({ mangaSimple, search, style }: Props) {
       setPlanIds(plan.map((p) => p.manga_id));
     }
     fetchLibrary();
-  }, [filterKeyword]);
+  }, [filterKeyword, db]);
 
   const filteredManga = useMemo(() => {
-    return mangaSimple.filter((item: SimpleDisplay) => {
+    return localManga.filter((item) => {
       if (filterKeyword === "all") return true;
       if (filterKeyword === "favorites") return favIds.includes(item.id);
       if (filterKeyword === "plan-to-read") return planIds.includes(item.id);
       return item.status === filterKeyword;
     });
-  }, [mangaSimple, filterKeyword, favIds, planIds]);
+  }, [localManga, filterKeyword, favIds, planIds]);
 
   return (
     <FlatList
       data={filteredManga}
       key={`grid-${numColumns}`}
       numColumns={numColumns}
-      // Centering the whole list container
       contentContainerStyle={[styles.listContent, style]}
-      // Ensuring columns are spread evenly
       columnWrapperStyle={numColumns > 1 ? styles.columnWrapper : null}
       keyExtractor={(item) => item.id}
-      ListHeaderComponent={
-        filterKeyword === "all" && !search ? (
-          <View style={styles.headerWrapper}>
-            <Pressable
-              onPress={() => router.push("/home/add-manga")}
-              style={({ pressed }) => [
-                styles.headerActionContainer,
-                { opacity: pressed ? 0.7 : 1 },
-              ]}
-            >
-              <View style={styles.iconCircle}>
-                <Octicons name="plus" size={18} color={Colors.dark.primary} />
-              </View>
-              <View>
-                <ThemedText style={styles.headerActionTitle}>
-                  Add New Manga
-                </ThemedText>
-                <ThemedText style={styles.headerActionSub}>
-                  Expand your library collection
-                </ThemedText>
-              </View>
-            </Pressable>
-          </View>
-        ) : null
-      }
       renderItem={({ item }) => (
         <Pressable
           onPress={() =>
@@ -98,7 +164,12 @@ export default function CardContainer({ mangaSimple, search, style }: Props) {
           }
         >
           <View style={styles.cardWrapper}>
-            <Card {...item} isAdult={item.isAdult} search={search} />
+            <Card
+              {...item}
+              isAdult={item.isAdult}
+              search={search}
+              isDownloading={syncingIds.includes(item.id)}
+            />
           </View>
         </Pressable>
       )}
@@ -107,53 +178,7 @@ export default function CardContainer({ mangaSimple, search, style }: Props) {
 }
 
 const styles = StyleSheet.create({
-  listContent: {
-    paddingBottom: 100,
-    alignItems: "center", // Crucial for centering the header and list
-  },
-  columnWrapper: {
-    justifyContent: "center", // This prevents the "shifted right" look
-    gap: 15, // Adds consistent spacing between cards horizontally
-  },
-  cardWrapper: {
-    paddingVertical: 10,
-    alignItems: "center",
-  },
-  headerWrapper: {
-    width: width,
-    alignItems: "center",
-    paddingVertical: 15,
-  },
-  headerActionContainer: {
-    width: width - 40,
-    backgroundColor: "#111",
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: "#222",
-    borderStyle: "dashed",
-    flexDirection: "row",
-    alignItems: "center",
-    padding: 16,
-    gap: 15,
-  },
-  iconCircle: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "rgba(255,255,255,0.03)",
-    justifyContent: "center",
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.05)",
-  },
-  headerActionTitle: {
-    fontSize: 15,
-    fontWeight: "700",
-    color: "#fff",
-  },
-  headerActionSub: {
-    fontSize: 12,
-    color: "#555",
-    marginTop: 1,
-  },
+  listContent: { paddingBottom: 100, alignItems: "center" },
+  columnWrapper: { justifyContent: "center", gap: 15 },
+  cardWrapper: { paddingVertical: 10, alignItems: "center" },
 });

@@ -134,6 +134,7 @@ export type SimpleDisplay = {
   readingLink?: string;
   isFavourite?: boolean;
   isPlanToRead?: boolean;
+  coverOnlineLink?: string;
 };
 
 export type MangaDB = {
@@ -145,11 +146,15 @@ export type MangaDB = {
   name: string;
   rating: null;
   status: MangaCategory;
+  cover_online_link: string;
   total_chap: number;
   reading_link: string;
   updated_at: number;
   year: number;
   is_adult: number | boolean;
+  genres?: string;
+  is_pinned?: number | boolean;
+  queue_order?: number;
 };
 
 export type MangaCategory =

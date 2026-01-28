@@ -5,7 +5,6 @@ import * as DocumentPicker from "expo-document-picker";
 import { Directory, File, Paths } from "expo-file-system";
 import * as ImagePicker from "expo-image-picker";
 import { useSQLiteContext } from "expo-sqlite";
-import { openBrowserAsync } from "expo-web-browser";
 import React, { useEffect, useState } from "react";
 import {
   Alert,
@@ -15,53 +14,79 @@ import {
   StyleSheet,
   Text,
   TextInput,
-  TextStyle,
   View,
-  ViewStyle,
 } from "react-native";
 
 export default function Settings() {
   const db = useSQLiteContext();
   const [username, setUsername] = useState("");
   const [stats, setStats] = useState({ reading: 0, favorites: 0, plan: 0 });
+  const [insights, setInsights] = useState({
+    topGenre: "Loading...",
+    streak: 0,
+    weeklyChapters: 0,
+    longestManga: "N/A",
+  });
   const [avatarPath, setAvatarPath] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [hasLoaded, setHasLoaded] = useState(false);
 
   useEffect(() => {
-    async function loadData() {
-      try {
-        const userRes = await db.getFirstAsync<{
-          username: string;
-          avatar_path: string;
-        }>(`SELECT username, avatar_path FROM "user" LIMIT 1`);
-        if (userRes) {
-          setUsername(userRes.username || "");
-          setAvatarPath(userRes.avatar_path || null);
-        }
-
-        const reading = await db.getFirstAsync<{ count: number }>(
-          `SELECT COUNT(*) as count FROM manga`,
-        );
-        const favs = await db.getFirstAsync<{ count: number }>(
-          `SELECT COUNT(*) as count FROM favorites`,
-        );
-        const plan = await db.getFirstAsync<{ count: number }>(
-          `SELECT COUNT(*) as count FROM plan_to_read`,
-        );
-
-        setStats({
-          reading: reading?.count || 0,
-          favorites: favs?.count || 0,
-          plan: plan?.count || 0,
-        });
-        setHasLoaded(true);
-      } catch (e) {
-        Alert.alert("Load Error:" + e);
-      }
-    }
     loadData();
   }, [db]);
+
+  async function loadData() {
+    try {
+      const userRes = await db.getFirstAsync<{
+        username: string;
+        avatar_path: string;
+      }>(`SELECT username, avatar_path FROM "user" LIMIT 1`);
+      if (userRes) {
+        setUsername(userRes.username || "");
+        setAvatarPath(userRes.avatar_path || null);
+      }
+
+      const reading = await db.getFirstAsync<{ count: number }>(
+        `SELECT COUNT(*) as count FROM manga`,
+      );
+      const favs = await db.getFirstAsync<{ count: number }>(
+        `SELECT COUNT(*) as count FROM favorites`,
+      );
+      const plan = await db.getFirstAsync<{ count: number }>(
+        `SELECT COUNT(*) as count FROM plan_to_read`,
+      );
+
+      setStats({
+        reading: reading?.count || 0,
+        favorites: favs?.count || 0,
+        plan: plan?.count || 0,
+      });
+
+      // Simple Insights Logic
+      const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+      const weekly = await db.getFirstAsync<{ total: number }>(
+        `SELECT SUM(chapters_read) as total FROM reading_history WHERE logged_at > ?`,
+        [sevenDaysAgo],
+      );
+      const genre = await db.getFirstAsync<{ genre: string }>(
+        `SELECT genre FROM manga_genres GROUP BY genre ORDER BY COUNT(*) DESC LIMIT 1`,
+      );
+      const longest = await db.getFirstAsync<{ name: string }>(
+        `SELECT name FROM manga ORDER BY current_chap DESC LIMIT 1`,
+      );
+
+      setInsights((prev) => ({
+        ...prev,
+        topGenre: genre?.genre || "None",
+        weeklyChapters: weekly?.total || 0,
+        longestManga: longest?.name || "N/A",
+      }));
+
+      setHasLoaded(true);
+    } catch (e) {
+      console.error("Load Data Error:", e);
+    }
+  }
 
   useEffect(() => {
     if (!hasLoaded) return;
@@ -72,22 +97,13 @@ export default function Settings() {
           username,
         ]);
       } catch (e) {
-        Alert.alert("Username Save Error:" + e);
+        console.error(e);
       } finally {
         setIsSaving(false);
       }
     }, 1000);
     return () => clearTimeout(timeout);
   }, [username, hasLoaded]);
-
-  async function deleteSearchHistory() {
-    try {
-      await db.runAsync(`DELETE FROM search_cache`);
-      Alert.alert("Success", "Search history cleared!");
-    } catch (e) {
-      Alert.alert("Error", "Couldn't clear history");
-    }
-  }
 
   async function pickUserAvatar() {
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -96,116 +112,94 @@ export default function Settings() {
       aspect: [1, 1],
       quality: 0.5,
     });
-
     if (result.canceled) return;
-
     try {
       const asset = result.assets[0];
-      const userDir = new Directory(Paths.document, "user");
-
-      if (!userDir.exists) {
-        await userDir.create();
-      }
-
+      const userDir = new Directory(Paths.document.uri, "user");
+      if (!userDir.exists) await userDir.create();
       const avatarFile = new File(userDir.uri, "avatar.jpg");
-
-      // FIX: Delete the old file if it exists before copying the new one
-      if (avatarFile.exists) {
-        avatarFile.delete();
-      }
-
+      if (avatarFile.exists) avatarFile.delete();
       await new File(asset.uri).copy(avatarFile);
-
       await db.runAsync(`UPDATE "user" SET avatar_path = ? WHERE id = 1`, [
         avatarFile.uri,
       ]);
-
       setAvatarPath(avatarFile.uri);
-      Alert.alert("Success", "Avatar updated!");
     } catch (e) {
-      Alert.alert("Error", "Failed to save image." + e);
+      Alert.alert("Error", "Failed to save avatar.");
     }
   }
 
   async function databaseExport() {
     try {
-      // 1. Reference the source database
-      const dbFile = new File(Paths.document, "SQLite", "manga.db");
-
-      if (!dbFile.exists) {
-        Alert.alert("Error", "Database file not found.");
-        return;
-      }
-
-      // 2. Open the system folder picker
+      const dbFile = new File(Paths.document.uri, "SQLite/manga.db");
       const destinationFolder = await Directory.pickDirectoryAsync();
       if (!destinationFolder) return;
-
-      // 3. Create the file entry in the selected directory
       const backupFile = destinationFolder.createFile(
         "manga_backup.db",
         "application/x-sqlite3",
       );
-
-      // 4. FIX: Use bytes() and write() instead of copy()
-      // This bypasses the Content URI limitation by streaming the data
       const dbBytes = await dbFile.bytes();
       await backupFile.write(dbBytes);
-
-      Alert.alert("Success", "Backup saved to your device!");
+      Alert.alert("Success", "Backup saved!");
     } catch (e) {
-      console.error(e);
-      Alert.alert(
-        "Export Error",
-        "The system blocked the file copy. Please try a different folder.",
-      );
+      Alert.alert("Export Error", "System blocked copy.");
     }
   }
+
   async function databaseImport() {
     try {
-      const result = await DocumentPicker.getDocumentAsync({
-        // Fix: Use a broader type or wildcard to prevent files from being greyed out
-        type: ["application/x-sqlite3", "application/octet-stream", "*/*"],
-        copyToCacheDirectory: true,
-      });
-
+      const result = await DocumentPicker.getDocumentAsync({ type: ["*/*"] });
       if (result.canceled) return;
 
       const pickedFile = result.assets[0];
-      const dbFile = new File(Paths.document, "SQLite", "manga.db");
+      const dbPath = `${Paths.document.uri}SQLite/manga.db`;
 
-      if (!dbFile.parentDirectory.exists) {
-        await dbFile.parentDirectory.create();
-      }
-
-      Alert.alert(
-        "Replace Database",
-        "This will overwrite your library. Please restart the app after.",
-        [
-          { text: "Cancel", style: "cancel" },
-          {
-            text: "Import",
-            style: "destructive",
-            onPress: async () => {
-              try {
-                // Ensure target is clear to avoid "file already exists" error
-                if (dbFile.exists) {
-                  dbFile.delete();
-                }
-
-                await new File(pickedFile.uri).copy(dbFile);
-                Alert.alert("Success", "Imported. Please restart the app.");
-              } catch (err) {
-                Alert.alert(`${err}`);
-                Alert.alert("Error", "Import failed.");
-              }
-            },
+      Alert.alert("Import Library", "App will restart to finalize.", [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Import & Exit",
+          onPress: async () => {
+            try {
+              const targetFile = new File(dbPath);
+              if (targetFile.exists) await targetFile.delete();
+              await new File(pickedFile.uri).copy(targetFile);
+              Alert.alert("Success", "Please restart the app.");
+            } catch (err) {
+              Alert.alert("Error", "File is locked.");
+            }
           },
-        ],
-      );
+        },
+      ]);
     } catch (e) {
-      Alert.alert("Import Error", "File picker failed.");
+      Alert.alert("Error", "Import failed.");
     }
+  }
+
+  async function resetDatabase() {
+    const dbDir = `${Paths.document.uri}SQLite`;
+    const dbPath = `${dbDir}/manga.db`;
+    const trashPath = `${dbDir}/manga.db.trash`;
+
+    Alert.alert("DANGER", "Wipe all data?", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Reset",
+        style: "destructive",
+        onPress: async () => {
+          try {
+            const dbFile = new File(dbPath);
+            if (dbFile.exists) {
+              const trashFile = new File(trashPath);
+              if (trashFile.exists) await trashFile.delete();
+              await dbFile.move(trashFile);
+            }
+            Alert.alert("Done", "Please restart the app.");
+          } catch (e) {
+            Alert.alert("Error", "DB is busy.");
+          }
+        },
+      },
+    ]);
   }
 
   return (
@@ -217,22 +211,14 @@ export default function Settings() {
               source={
                 avatarPath
                   ? { uri: avatarPath }
-                  : require("@/assets/images/example-cover.webp") // Your default placeholder
+                  : require("@/assets/images/example-cover.webp")
               }
               style={styles.avatar}
-              // If the file exists in DB but is missing from disk, reset to placeholder
-              onError={() => {
-                console.warn(
-                  "Avatar file not found on disk, reverting to placeholder.",
-                );
-                setAvatarPath(null);
-              }}
             />
             <View style={styles.cameraIconContainer}>
               <Ionicons name="camera" size={18} color="#fff" />
             </View>
           </Pressable>
-
           <TextInput
             value={username}
             onChangeText={setUsername}
@@ -245,60 +231,71 @@ export default function Settings() {
           </Text>
         </View>
 
+        <View style={styles.insightsContainer}>
+          <View style={styles.insightsHeader}>
+            <Ionicons name="analytics" size={16} color={Colors.dark.primary} />
+            <Text style={styles.insightsTitle}>Reading Insights</Text>
+          </View>
+          <View style={styles.insightsGrid}>
+            <InsightItem
+              icon="flame"
+              label="Streak"
+              value={`${insights.streak} Days`}
+              color="#FF5F6D"
+            />
+            <InsightItem
+              icon="library"
+              label="Top Genre"
+              value={insights.topGenre}
+              color="#FFC371"
+            />
+            <InsightItem
+              icon="calendar"
+              label="This Week"
+              value={`${insights.weeklyChapters} Ch.`}
+              color="#2196F3"
+            />
+            <InsightItem
+              icon="trophy"
+              label="Longest Read"
+              value={insights.longestManga}
+              color="#4CAF50"
+              isFull
+            />
+          </View>
+        </View>
+
         <View style={styles.statsRow}>
-          <StatBox label="Reading" count={stats.reading} icon="book" />
+          <StatBox label="Library" count={stats.reading} icon="book" />
           <StatBox label="Favorites" count={stats.favorites} icon="heart" />
           <StatBox label="Planning" count={stats.plan} icon="bookmark" />
         </View>
 
         <View style={styles.section}>
-          <Text style={styles.sectionLabel}>Library Management</Text>
+          <Text style={styles.sectionLabel}>Library & Data</Text>
           <SettingItem
             icon="trash-outline"
-            label="Clear Search History"
+            label="Clear History"
             color="#ff4444"
-            onPress={() =>
-              Alert.alert("Clear", "Clear search history?", [
-                { text: "Cancel", style: "cancel" },
-                {
-                  text: "Clear All",
-                  style: "destructive",
-                  onPress: deleteSearchHistory,
-                },
-              ])
-            }
+            onPress={() => db.runAsync(`DELETE FROM search_cache`)}
           />
           <SettingItem
-            icon="download-outline"
-            label="Import Database"
-            color="#f5ae15"
-            styleIcon={{ transform: [{ rotate: "180deg" }] }}
-            onPress={databaseImport}
-          />
-          <SettingItem
-            icon="download-outline"
-            label="Backup Database"
+            icon="cloud-upload-outline"
+            label="Backup"
             color={Colors.dark.primary}
             onPress={databaseExport}
           />
-        </View>
-
-        <View style={[styles.section, { marginBottom: 42 }]}>
-          <Text style={styles.sectionLabel}>About</Text>
           <SettingItem
-            icon="information-circle-outline"
-            label="App Version"
-            subLabel="v1.0.0"
-            showChevron={false}
-            color="#333"
+            icon="cloud-download-outline"
+            label="Import"
+            color="#f5ae15"
+            onPress={databaseImport}
           />
           <SettingItem
-            icon="logo-github"
-            onPress={() =>
-              openBrowserAsync("https://github.com/Evrayem3201b/manga-manger")
-            }
-            label="Source Code"
-            color="#333"
+            icon="refresh-outline"
+            label="Reset"
+            color="#666"
+            onPress={resetDatabase}
           />
         </View>
       </ScrollView>
@@ -314,37 +311,31 @@ const StatBox = ({ label, count, icon }: any) => (
   </View>
 );
 
+const InsightItem = ({ icon, label, value, color, isFull }: any) => (
+  <View style={[styles.insightItem, isFull && { width: "100%" }]}>
+    <View style={[styles.insightIconCircle, { backgroundColor: `${color}20` }]}>
+      <Ionicons name={icon} size={16} color={color} />
+    </View>
+    <View style={{ flex: 1 }}>
+      <Text style={styles.insightLabel}>{label}</Text>
+      <Text style={styles.insightValue} numberOfLines={1}>
+        {value}
+      </Text>
+    </View>
+  </View>
+);
+
 const SettingItem = ({
   icon,
   label,
   subLabel,
   color,
   onPress,
-  style,
-  styleIcon,
   showChevron = true,
-}: {
-  icon: any;
-  label: string;
-  subLabel?: string;
-  color: string;
-  onPress?: () => void;
-  style?: ViewStyle;
-  styleIcon?: TextStyle;
-  showChevron?: boolean;
-}) => (
-  <Pressable
-    style={({ pressed }) => [
-      styles.settingItem,
-      style,
-      { opacity: pressed ? 0.7 : 1 },
-    ]}
-    onPress={onPress}
-  >
-    <View
-      style={[styles.iconContainer, { backgroundColor: color || "#1a1a1e" }]}
-    >
-      <Ionicons style={styleIcon} name={icon} size={20} color="#fff" />
+}: any) => (
+  <Pressable style={styles.settingItem} onPress={onPress}>
+    <View style={[styles.iconContainer, { backgroundColor: color }]}>
+      <Ionicons name={icon} size={20} color="#fff" />
     </View>
     <View style={{ flex: 1 }}>
       <Text style={styles.itemLabel}>{label}</Text>
@@ -355,7 +346,7 @@ const SettingItem = ({
 );
 
 const styles = StyleSheet.create({
-  scrollContent: { paddingBottom: 40 },
+  scrollContent: { paddingBottom: 60 },
   header: { alignItems: "center", marginTop: 40, marginBottom: 30 },
   avatarWrapper: { position: "relative", marginBottom: 15 },
   avatar: {
@@ -377,57 +368,93 @@ const styles = StyleSheet.create({
     alignItems: "center",
     borderWidth: 3,
     borderColor: "#000",
-    elevation: 5,
   },
   usernameInput: {
     color: "#fff",
-    fontSize: 22,
+    fontSize: 24,
     fontWeight: "700",
     textAlign: "center",
-    width: "80%",
+    minWidth: 200,
   },
   savingText: {
     color: Colors.dark.primary,
     fontSize: 10,
-    marginTop: 5,
+    marginTop: 4,
     fontWeight: "700",
   },
+  insightsContainer: {
+    width: "90%",
+    alignSelf: "center",
+    backgroundColor: "#111114",
+    borderRadius: 24,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: "#222",
+    marginBottom: 25,
+  },
+  insightsHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 15,
+  },
+  insightsTitle: {
+    color: "#fff",
+    fontSize: 13,
+    fontWeight: "700",
+    textTransform: "uppercase",
+    letterSpacing: 1,
+  },
+  insightsGrid: { flexDirection: "row", flexWrap: "wrap", gap: 12 },
+  insightItem: {
+    width: "48%",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    backgroundColor: "#1a1a1e",
+    padding: 12,
+    borderRadius: 16,
+  },
+  insightIconCircle: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  insightLabel: { color: "#666", fontSize: 10, fontWeight: "600" },
+  insightValue: { color: "#fff", fontSize: 13, fontWeight: "700" },
   statsRow: {
     flexDirection: "row",
-    justifyContent: "space-evenly",
-    width: "100%",
+    justifyContent: "space-between",
+    width: "90%",
+    alignSelf: "center",
     marginBottom: 30,
   },
   statBox: {
     alignItems: "center",
-    backgroundColor: "#151518",
+    backgroundColor: "#111114",
     padding: 15,
     borderRadius: 20,
-    width: "28%",
+    width: "31%",
     borderWidth: 1,
     borderColor: "#222",
   },
   statCount: { color: "#fff", fontSize: 18, fontWeight: "bold", marginTop: 5 },
-  statLabel: {
-    color: "#666",
-    fontSize: 10,
-    textTransform: "uppercase",
-    letterSpacing: 1,
-  },
+  statLabel: { color: "#666", fontSize: 10, textTransform: "uppercase" },
   section: { width: "90%", alignSelf: "center", marginBottom: 25 },
   sectionLabel: {
     color: "#555",
     fontSize: 12,
     fontWeight: "bold",
     textTransform: "uppercase",
-    letterSpacing: 1.5,
     marginBottom: 12,
     marginLeft: 10,
   },
   settingItem: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#151518",
+    backgroundColor: "#111114",
     padding: 12,
     borderRadius: 18,
     marginBottom: 8,

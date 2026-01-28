@@ -6,7 +6,6 @@ function buildCoverUrl(manga: Manga): { uri: string } {
     (rel): rel is any => rel.type === "cover_art",
   );
 
-  // Fallback if cover art is missing from relationships
   if (!cover?.attributes?.fileName) {
     return require("@/assets/images/example-cover.webp");
   }
@@ -16,34 +15,34 @@ function buildCoverUrl(manga: Manga): { uri: string } {
   };
 }
 
-export function useSearchManga(query: string, limit = 20, offset = 0) {
-  // Use the destructuring to match your useSearchData return structure
+export function useSearchManga(
+  query: string,
+  limit = 40, // Increased limit for better local filtering
+  offset = 0,
+) {
   const { data, isLoading, isFetching } = useSearchData(query, limit, offset);
 
-  // Since data is { results: Manga[], total: number } or undefined
-  const results: SimpleDisplay[] = (data?.results ?? []).map(
-    (manga: Manga) => ({
-      id: manga.id,
-      name:
-        manga.attributes.title.en ??
-        Object.values(manga.attributes.title)[0] ??
-        "Unknown",
-      status: manga.attributes.status,
-      coverUrl: buildCoverUrl(manga),
-      // MangaDex uses strings for chapter numbers; handle properly
-      totalChap: parseInt(manga.attributes.lastChapter || "0", 10),
-      currentChap: 0,
-      isAdult:
-        manga.attributes.tags?.some(
-          (tag) =>
-            tag.attributes?.name?.en?.toLowerCase() === "adult" ||
-            tag.attributes?.name?.en?.toLowerCase() === "hentai" ||
-            tag.attributes?.name?.en?.toLowerCase() === "erotica" ||
-            tag.attributes?.name?.en?.toLowerCase() === "sexual violence" ||
-            tag.attributes?.name?.en?.toLowerCase() === "nsfw",
-        ) || false,
-    }),
-  );
+  const results: (SimpleDisplay & { genres: string[] })[] = (
+    data?.results ?? []
+  ).map((manga: Manga) => ({
+    id: manga.id,
+    name:
+      manga.attributes.title.en ??
+      Object.values(manga.attributes.title)[0] ??
+      "Unknown",
+    status: manga.attributes.status,
+    coverUrl: buildCoverUrl(manga),
+    totalChap: parseInt(manga.attributes.lastChapter || "0", 10),
+    currentChap: 0,
+    isAdult:
+      manga.attributes.tags?.some((tag) =>
+        ["adult", "hentai", "erotica", "sexual violence", "sexual"].includes(
+          tag.attributes?.name?.en?.toLowerCase() || "",
+        ),
+      ) || false,
+    // Map MangaDex tags to simple strings for local filtering
+    genres: manga.attributes.tags.map((t) => t.attributes.name.en),
+  }));
 
   return {
     results,

@@ -1,373 +1,462 @@
 import CardContainer from "@/components/card-container";
 import ScreenHug from "@/components/ScreenHug";
-import { ThemedText } from "@/components/themed-text";
 import { Colors } from "@/constants/theme";
 import { useSearchManga } from "@/hooks/fetching/useSearchManga";
-import { Ionicons } from "@expo/vector-icons";
-import { useSQLiteContext } from "expo-sqlite";
-import React, { useEffect, useState } from "react";
+import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
-  KeyboardAvoidingView,
-  Platform,
+  Modal,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
   View,
 } from "react-native";
 
+const RECENT_SEARCHES_KEY = "@recent_searches_db";
+
 export default function Search() {
   const [query, setQuery] = useState("");
   const [debounced, setDebounced] = useState("");
+  const [showFilters, setShowFilters] = useState(false);
+  const [isFocused, setIsFocused] = useState(false);
+  const [recentSearches, setRecentSearches] = useState<string[]>([]);
 
-  const limit = 20;
+  // Local Filter States
+  const [selectedStatus, setSelectedStatus] = useState<string | null>(null);
+  const [selectedGenres, setSelectedGenres] = useState<string[]>([]);
 
-  const db = useSQLiteContext();
-  const [recentSearches, setRecentSearches] = useState<
-    { query: string; result_ids: string[] }[]
-  >([]);
+  // 1. Fetch data based ONLY on the text query
+  const { results, isFetching } = useSearchManga(debounced, 50, 0);
 
-  const [page, setPage] = useState(1);
+  // Persistence Logic
+  useEffect(() => {
+    loadRecentSearches();
+  }, []);
 
-  // Pass limit and offset ( (page - 1) * limit ) to the hook
-  const { results, total, isFetching } = useSearchManga(
-    debounced,
-    limit,
-    (page - 1) * limit,
-  );
-
-  const totalPages = Math.ceil(total / limit);
-
-  // 1. Handle Debounce & Reset Page on new search
   useEffect(() => {
     const t = setTimeout(() => {
       setDebounced(query);
-      setPage(1);
-    }, 300);
+      if (query.trim().length > 2) {
+        saveSearch(query.trim());
+      }
+    }, 600);
     return () => clearTimeout(t);
   }, [query]);
 
-  // 2. Save search to history
-  useEffect(() => {
-    if (debounced.length > 2 && results.length > 0) {
-      const saveToCache = async () => {
-        try {
-          const resultIds = results.map((m) => m.id);
-          await db.runAsync(
-            `INSERT OR REPLACE INTO search_cache (query, result_ids, created_at) VALUES (?, ?, ?)`,
-            [debounced, JSON.stringify(resultIds), Date.now()],
-          );
-        } catch (e) {
-          Alert.alert("Cache error:" + e);
-        }
-      };
-      saveToCache();
+  const loadRecentSearches = async () => {
+    try {
+      const saved = await AsyncStorage.getItem(RECENT_SEARCHES_KEY);
+      if (saved) setRecentSearches(JSON.parse(saved));
+    } catch (e) {
+      console.error("Failed to load searches", e);
     }
+  };
+
+  const saveSearch = async (term: string) => {
+    try {
+      let updated = [term, ...recentSearches.filter((s) => s !== term)];
+      updated = updated.slice(0, 8); // Store last 8
+      setRecentSearches(updated);
+      await AsyncStorage.setItem(RECENT_SEARCHES_KEY, JSON.stringify(updated));
+    } catch (e) {
+      console.error("Failed to save search", e);
+    }
+  };
+
+  const removeSearch = async (term: string) => {
+    const updated = recentSearches.filter((s) => s !== term);
+    setRecentSearches(updated);
+    await AsyncStorage.setItem(RECENT_SEARCHES_KEY, JSON.stringify(updated));
+  };
+
+  const clearAllRecent = async () => {
+    setRecentSearches([]);
+    await AsyncStorage.removeItem(RECENT_SEARCHES_KEY);
+  };
+
+  // 2. Extract dynamic genres from results
+  const availableGenres = useMemo(() => {
+    const genres = new Set<string>();
+    results.forEach((manga) => {
+      manga.genres.forEach((g) => genres.add(g));
+    });
+    return Array.from(genres).sort();
   }, [results]);
 
-  // 3. Load history on mount
-  useEffect(() => {
-    const loadRecentSearches = async () => {
-      try {
-        const rows = await db.getAllAsync<{
-          query: string;
-          result_ids: string;
-        }>(
-          `SELECT query, result_ids FROM search_cache ORDER BY created_at DESC LIMIT 10`,
-        );
-        setRecentSearches(
-          rows.map((r) => ({
-            query: r.query,
-            result_ids: JSON.parse(r.result_ids),
-          })),
-        );
-      } catch (e) {
-        Alert.alert(`${e}`);
-      }
-    };
-    loadRecentSearches();
-  }, [db]);
+  // 3. Client-side Filter Logic
+  const filteredResults = useMemo(() => {
+    return results.filter((manga) => {
+      const matchStatus = !selectedStatus || manga.status === selectedStatus;
+      const matchGenres =
+        selectedGenres.length === 0 ||
+        selectedGenres.every((g) => manga.genres.includes(g));
+      return matchStatus && matchGenres;
+    });
+  }, [results, selectedStatus, selectedGenres]);
 
-  async function removeRecentSearch(queryToDelete: string) {
-    try {
-      await db.runAsync(`DELETE FROM search_cache WHERE query = ?`, [
-        queryToDelete,
-      ]);
-      // Update local state to remove it from UI immediately
-      setRecentSearches((prev) =>
-        prev.filter((item) => item.query !== queryToDelete),
-      );
-    } catch (e) {
-      Alert.alert("Delete error:" + e);
-    }
-  }
+  const toggleGenre = (genre: string) => {
+    setSelectedGenres((prev) =>
+      prev.includes(genre) ? prev.filter((g) => g !== genre) : [...prev, genre],
+    );
+  };
+
+  const clearFilters = () => {
+    setSelectedStatus(null);
+    setSelectedGenres([]);
+  };
 
   return (
     <ScreenHug title="Search" scroll={false}>
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-      >
-        <View style={styles.container}>
-          {/* Search Input */}
-          <View style={styles.searchBox}>
-            <Ionicons name="search" size={18} color="#888" />
+      <View style={styles.container}>
+        <View style={styles.searchRow}>
+          <View
+            style={[styles.searchBox, isFocused && styles.searchBoxFocused]}
+          >
+            <Ionicons
+              name="globe-outline"
+              size={18}
+              color={isFocused ? Colors.dark.primary : "#555"}
+            />
             <TextInput
-              placeholder="Search manga..."
-              placeholderTextColor="#999"
+              placeholder="Discover new manga..."
+              placeholderTextColor="#555"
               style={styles.input}
               value={query}
               onChangeText={setQuery}
+              onFocus={() => setIsFocused(true)}
+              onBlur={() => setTimeout(() => setIsFocused(false), 200)}
             />
             {isFetching && (
-              <ActivityIndicator
-                size="small"
-                color={Colors.dark.primary}
-                style={{ marginRight: 8 }}
-              />
-            )}
-            {query.length > 0 && (
-              <Pressable onPress={() => setQuery("")}>
-                <Ionicons name="close-circle" size={18} color="#999" />
-              </Pressable>
+              <ActivityIndicator size="small" color={Colors.dark.primary} />
             )}
           </View>
 
-          {/* Results List */}
-          <CardContainer search mangaSimple={results} />
+          <Pressable
+            style={[
+              styles.filterBtn,
+              (selectedStatus || selectedGenres.length > 0) &&
+                styles.filterBtnActive,
+            ]}
+            onPress={() => setShowFilters(true)}
+          >
+            <View>
+              <Ionicons
+                name="options"
+                size={22}
+                color={
+                  selectedStatus || selectedGenres.length > 0
+                    ? "#000"
+                    : Colors.dark.primary
+                }
+              />
+              {(selectedStatus || selectedGenres.length > 0) && (
+                <View style={styles.filterBadge} />
+              )}
+            </View>
+          </Pressable>
+        </View>
 
-          {/* Floating Pagination Bar */}
-          {results.length > 0 && (
-            <View style={styles.paginationWrapper}>
-              <View style={styles.paginationBlur}>
-                <Pressable
-                  disabled={page === 1}
-                  onPress={() => setPage((p) => p - 1)}
-                  style={({ pressed }) => [
-                    styles.pageBtn,
-                    page === 1 && { opacity: 0.2 },
-                    pressed && { backgroundColor: "rgba(255,255,255,0.05)" },
-                  ]}
-                >
-                  <Ionicons
-                    name="chevron-back"
-                    size={22}
-                    color={Colors.dark.primary}
-                  />
+        {/* --- RECENT SEARCHES CONTENT (Appears when query is empty) --- */}
+        {query === "" ? (
+          <ScrollView
+            style={styles.recentContainer}
+            keyboardShouldPersistTaps="handled"
+          >
+            <View style={styles.recentHeader}>
+              <Text style={styles.recentTitle}>Recent Searches</Text>
+              {recentSearches.length > 0 && (
+                <Pressable onPress={clearAllRecent}>
+                  <Text style={styles.clearAllText}>Clear All</Text>
                 </Pressable>
+              )}
+            </View>
 
-                <View style={styles.pageInfo}>
-                  <Text style={styles.pageLabel}>PAGE</Text>
-                  <Text style={styles.pageCurrent}>{page}</Text>
-                  <Text style={styles.pageDivider}>/</Text>
-                  <Text style={styles.pageTotal}>{totalPages || 1}</Text>
+            {recentSearches.length > 0 ? (
+              recentSearches.map((item, idx) => (
+                <Pressable
+                  key={idx}
+                  style={styles.recentItem}
+                  onPress={() => setQuery(item)}
+                >
+                  <View style={styles.recentLeft}>
+                    <MaterialCommunityIcons
+                      name="history"
+                      size={20}
+                      color="#444"
+                    />
+                    <Text style={styles.recentText}>{item}</Text>
+                  </View>
+                  <Pressable hitSlop={10} onPress={() => removeSearch(item)}>
+                    <Ionicons name="close" size={18} color="#444" />
+                  </Pressable>
+                </Pressable>
+              ))
+            ) : (
+              <View style={styles.emptyRecent}>
+                <Ionicons name="search-outline" size={50} color="#1a1a1e" />
+                <Text style={styles.emptyRecentText}>
+                  Try searching for a title or author
+                </Text>
+              </View>
+            )}
+          </ScrollView>
+        ) : (
+          <CardContainer search mangaSimple={filteredResults} />
+        )}
+
+        {/* --- MODAL (Kept exactly as requested) --- */}
+        <Modal visible={showFilters} animationType="slide" transparent>
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <View style={styles.modalHeader}>
+                <View>
+                  <Text style={styles.modalTitle}>Filters</Text>
+                  <Text style={styles.modalSubTitle}>
+                    {filteredResults.length} matches found
+                  </Text>
+                </View>
+                <Pressable onPress={() => setShowFilters(false)}>
+                  <Ionicons name="close" size={28} color="#555" />
+                </Pressable>
+              </View>
+
+              <ScrollView showsVerticalScrollIndicator={false}>
+                <View style={styles.sectionHeader}>
+                  <Text style={styles.label}>Publication Status</Text>
+                  {selectedStatus && (
+                    <Pressable onPress={() => setSelectedStatus(null)}>
+                      <Text style={styles.clearText}>Reset</Text>
+                    </Pressable>
+                  )}
+                </View>
+                <View style={styles.chipRow}>
+                  {["ongoing", "completed", "hiatus", "cancelled"].map((s) => (
+                    <Pressable
+                      key={s}
+                      onPress={() =>
+                        setSelectedStatus(selectedStatus === s ? null : s)
+                      }
+                      style={[
+                        styles.chip,
+                        selectedStatus === s && styles.chipActive,
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.chipText,
+                          selectedStatus === s && styles.chipTextActive,
+                        ]}
+                      >
+                        {s.charAt(0).toUpperCase() + s.slice(1)}
+                      </Text>
+                    </Pressable>
+                  ))}
                 </View>
 
+                {availableGenres.length > 0 && (
+                  <>
+                    <View style={[styles.sectionHeader, { marginTop: 25 }]}>
+                      <Text style={styles.label}>Genres in Results</Text>
+                      {selectedGenres.length > 0 && (
+                        <Pressable onPress={() => setSelectedGenres([])}>
+                          <Text style={styles.clearText}>Reset</Text>
+                        </Pressable>
+                      )}
+                    </View>
+                    <View style={styles.chipRow}>
+                      {availableGenres.map((g) => (
+                        <Pressable
+                          key={g}
+                          onPress={() => toggleGenre(g)}
+                          style={[
+                            styles.chip,
+                            selectedGenres.includes(g) && styles.chipActive,
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.chipText,
+                              selectedGenres.includes(g) &&
+                                styles.chipTextActive,
+                            ]}
+                          >
+                            {g}
+                          </Text>
+                        </Pressable>
+                      ))}
+                    </View>
+                  </>
+                )}
+              </ScrollView>
+
+              <View style={styles.footerRow}>
+                <Pressable style={styles.clearBtn} onPress={clearFilters}>
+                  <Text style={styles.clearBtnText}>Clear All</Text>
+                </Pressable>
                 <Pressable
-                  disabled={page >= totalPages}
-                  onPress={() => setPage((p) => p + 1)}
-                  style={({ pressed }) => [
-                    styles.pageBtn,
-                    page >= totalPages && { opacity: 0.2 },
-                    pressed && { backgroundColor: "rgba(255,255,255,0.05)" },
-                  ]}
+                  style={styles.applyBtn}
+                  onPress={() => setShowFilters(false)}
                 >
-                  <Ionicons
-                    name="chevron-forward"
-                    size={22}
-                    color={Colors.dark.primary}
-                  />
+                  <Text style={styles.applyBtnText}>Show Results</Text>
                 </Pressable>
               </View>
             </View>
-          )}
-
-          {/* Recent Searches Overlay */}
-          {query.length === 0 && recentSearches.length > 0 && (
-            <View style={styles.historyContainer}>
-              <ThemedText style={styles.sectionTitle}>
-                Recent Searches
-              </ThemedText>
-              {recentSearches.map((item, index) => (
-                <View key={index} style={styles.recentItemRow}>
-                  <Pressable
-                    style={styles.recentItemContent}
-                    onPress={() => setQuery(item.query)}
-                  >
-                    <Ionicons
-                      name="time-outline"
-                      size={20}
-                      color={Colors.dark.primary}
-                    />
-                    <Text style={styles.recentText}>{item.query}</Text>
-                  </Pressable>
-
-                  {/* The 'X' Remove Button */}
-                  <Pressable
-                    onPress={() => removeRecentSearch(item.query)}
-                    style={({ pressed }) => [
-                      styles.removeBtn,
-                      { opacity: pressed ? 0.5 : 1 },
-                    ]}
-                  >
-                    <Ionicons name="close" size={20} color="#444" />
-                  </Pressable>
-                </View>
-              ))}
-            </View>
-          )}
-
-          {/* Empty State */}
-          {query.length > 2 && results.length === 0 && !isFetching && (
-            <View style={styles.emptyState}>
-              <Ionicons name="search-outline" size={48} color="#333" />
-              <Text style={styles.emptyText}>
-                No results found for `{query}`
-              </Text>
-            </View>
-          )}
-        </View>
-      </KeyboardAvoidingView>
+          </View>
+        </Modal>
+      </View>
     </ScreenHug>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    paddingVertical: 16,
-    backgroundColor: Colors.dark.background,
-  },
+  container: { flex: 1, paddingTop: 10 },
+  searchRow: { flexDirection: "row", gap: 10, marginBottom: 15 },
   searchBox: {
+    flex: 1,
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
-    paddingHorizontal: 14,
-    height: 48,
+    backgroundColor: "#111",
     borderRadius: 16,
-    backgroundColor: "#16161a",
+    paddingHorizontal: 15,
+    height: 52,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.08)",
-    marginBottom: 16,
-    // marginHorizontal: 16,
+    borderColor: "#222",
   },
-  input: {
-    flex: 1,
-    fontSize: 16,
-    color: "#f5f5f7",
+  searchBoxFocused: { borderColor: Colors.dark.primary },
+  input: { flex: 1, color: "#fff", marginLeft: 10, fontSize: 16 },
+  filterBtn: {
+    width: 52,
+    height: 52,
+    backgroundColor: "#111",
+    borderRadius: 16,
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#222",
   },
-  historyContainer: {
+  filterBtnActive: {
+    backgroundColor: Colors.dark.primary,
+    borderColor: Colors.dark.primary,
+  },
+  filterBadge: {
     position: "absolute",
-    top: 80,
-    left: 16,
-    right: 16,
-    backgroundColor: Colors.dark.background,
-    bottom: 0,
+    top: -2,
+    right: -2,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: "#fff",
+    borderWidth: 1.5,
+    borderColor: Colors.dark.primary,
   },
-  sectionTitle: {
-    fontSize: 12,
-    fontWeight: "800",
-    color: "#555",
-    textTransform: "uppercase",
-    letterSpacing: 1.5,
-    marginBottom: 12,
+  // Recent Searches Styling
+  recentContainer: { flex: 1 },
+  recentHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginTop: 10,
+    marginBottom: 20,
+    paddingHorizontal: 5,
   },
+  recentTitle: { color: "#fff", fontSize: 18, fontWeight: "700" },
+  clearAllText: { color: Colors.dark.primary, fontSize: 14, fontWeight: "600" },
   recentItem: {
     flexDirection: "row",
+    justifyContent: "space-between",
     alignItems: "center",
-    gap: 12,
-    paddingVertical: 14,
+    paddingVertical: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: "#111",
   },
-
-  emptyState: {
+  recentLeft: { flexDirection: "row", alignItems: "center", gap: 12 },
+  recentText: { color: "#888", fontSize: 16, fontWeight: "500" },
+  emptyRecent: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    gap: 12,
+    marginTop: 100,
   },
-  emptyText: {
-    fontSize: 15,
-    color: "#666",
-    textAlign: "center",
-  },
-  // Pagination Styles
-  paginationWrapper: {
-    position: "absolute",
-    bottom: 90,
-    left: 0,
-    right: 0,
-    alignItems: "center",
-    zIndex: 10,
-  },
-  paginationBlur: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "rgba(28, 28, 32, 0.95)",
-    padding: 6,
-    borderRadius: 30,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.15)",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.5,
-    shadowRadius: 15,
-    elevation: 20,
-  },
-  pageBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  pageInfo: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 16,
-  },
-  pageLabel: {
-    color: "#555",
-    fontSize: 9,
-    fontWeight: "900",
-    marginRight: 8,
-    letterSpacing: 1,
-  },
-  pageCurrent: {
-    color: Colors.dark.primary,
-    fontSize: 18,
-    fontWeight: "bold",
-  },
-  pageDivider: {
-    color: "#444",
-    fontSize: 16,
-    marginHorizontal: 6,
-  },
-  pageTotal: {
-    color: "#777",
+  emptyRecentText: {
+    color: "#333",
+    marginTop: 15,
     fontSize: 14,
     fontWeight: "600",
   },
-  recentItemRow: {
+
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.8)",
+    justifyContent: "flex-end",
+  },
+  modalContent: {
+    backgroundColor: "#0a0a0a",
+    borderTopLeftRadius: 32,
+    borderTopRightRadius: 32,
+    padding: 24,
+    height: "70%",
+    borderTopWidth: 1,
+    borderColor: "#222",
+  },
+  modalHeader: {
     flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    marginBottom: 25,
+  },
+  modalTitle: { color: "#fff", fontSize: 22, fontWeight: "800" },
+  modalSubTitle: { color: "#555", fontSize: 13, marginTop: 4 },
+  sectionHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
     alignItems: "center",
-    justifyContent: "space-between", // Pushes X to the right
+    marginBottom: 15,
+  },
+  label: {
+    color: "#444",
+    fontSize: 11,
+    fontWeight: "900",
+    textTransform: "uppercase",
+    letterSpacing: 1,
+  },
+  clearText: { color: Colors.dark.primary, fontSize: 12, fontWeight: "700" },
+  chipRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  chip: {
+    paddingHorizontal: 14,
     paddingVertical: 8,
+    borderRadius: 10,
+    backgroundColor: "#111",
+    borderWidth: 1,
+    borderColor: "#222",
   },
-  recentItemContent: {
-    flexDirection: "row",
+  chipActive: {
+    backgroundColor: Colors.dark.primary,
+    borderColor: Colors.dark.primary,
+  },
+  chipText: { color: "#666", fontSize: 13, fontWeight: "600" },
+  chipTextActive: { color: "#000", fontWeight: "800" },
+  footerRow: { flexDirection: "row", gap: 12, marginTop: 20 },
+  clearBtn: {
+    flex: 1,
+    height: 54,
+    borderRadius: 16,
+    justifyContent: "center",
     alignItems: "center",
-    gap: 12,
-    flex: 1, // Takes up remaining space so user can tap the text easily
-    height: 40,
+    borderWidth: 1,
+    borderColor: "#222",
   },
-  removeBtn: {
-    padding: 8,
-    marginLeft: 10,
+  clearBtnText: { color: "#fff", fontWeight: "700" },
+  applyBtn: {
+    flex: 2,
+    backgroundColor: Colors.dark.primary,
+    height: 54,
+    borderRadius: 16,
+    justifyContent: "center",
+    alignItems: "center",
   },
-  recentText: {
-    fontSize: 16,
-    color: "#ccc",
-  },
+  applyBtnText: { fontWeight: "900", fontSize: 16, color: "#000" },
 });

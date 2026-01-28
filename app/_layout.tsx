@@ -54,8 +54,28 @@ CREATE TABLE IF NOT EXISTS manga (
   reading_link TEXT,
   created_at INTEGER,
   updated_at INTEGER,
-  is_adult BOOLEAN DEFAULT FALSE
+  is_adult BOOLEAN DEFAULT FALSE,
+  is_pinned INTEGER DEFAULT 0,
+  queue_order INTEGER DEFAULT 0
 );
+
+-- NEW: Table to track every chapter increase for streaks/stats
+              CREATE TABLE IF NOT EXISTS reading_history (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                manga_id TEXT NOT NULL,
+                chapters_read INTEGER DEFAULT 1,
+                logged_at INTEGER DEFAULT (strftime('%s','now')),
+                FOREIGN KEY (manga_id) REFERENCES manga(id) ON DELETE CASCADE
+              );
+
+              -- NEW: Trigger to automatically log when current_chap increases
+              CREATE TRIGGER IF NOT EXISTS log_reading_progress
+              AFTER UPDATE OF current_chap ON manga
+              WHEN NEW.current_chap > OLD.current_chap
+              BEGIN
+                INSERT INTO reading_history (manga_id, chapters_read, logged_at)
+                VALUES (NEW.id, NEW.current_chap - OLD.current_chap, strftime('%s','now') * 1000);
+              END;
 
 CREATE TABLE IF NOT EXISTS manga_genres (
   manga_id TEXT NOT NULL,
