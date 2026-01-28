@@ -4,9 +4,12 @@ import { Colors } from "@/constants/theme";
 import { useSearchManga } from "@/hooks/fetching/useSearchManga";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import React, { useEffect, useMemo, useState } from "react";
+import { useFocusEffect } from "expo-router";
+import { useSQLiteContext } from "expo-sqlite";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Modal,
   Pressable,
   ScrollView,
@@ -30,12 +33,15 @@ export default function Search() {
   const [selectedGenres, setSelectedGenres] = useState<string[]>([]);
 
   // 1. Fetch data based ONLY on the text query
-  const { results, isFetching } = useSearchManga(debounced, 50, 0);
+  const { results, isFetching } = useSearchManga(debounced, 20, 0);
+  const db = useSQLiteContext();
 
   // Persistence Logic
-  useEffect(() => {
-    loadRecentSearches();
-  }, []);
+  useFocusEffect(
+    useCallback(() => {
+      loadRecentSearches();
+    }, []),
+  );
 
   useEffect(() => {
     const t = setTimeout(() => {
@@ -49,19 +55,20 @@ export default function Search() {
 
   const loadRecentSearches = async () => {
     try {
-      const saved = await AsyncStorage.getItem(RECENT_SEARCHES_KEY);
-      if (saved) setRecentSearches(JSON.parse(saved));
+      const searchCache: { query: string }[] = await db.getAllAsync(
+        `SELECT query FROM search_cache`,
+      );
+
+      if (searchCache) setRecentSearches(searchCache.map((s) => s.query));
     } catch (e) {
-      console.error("Failed to load searches", e);
+      Alert.alert("Failed to load searches");
     }
   };
 
   const saveSearch = async (term: string) => {
     try {
-      let updated = [term, ...recentSearches.filter((s) => s !== term)];
-      updated = updated.slice(0, 8); // Store last 8
-      setRecentSearches(updated);
-      await AsyncStorage.setItem(RECENT_SEARCHES_KEY, JSON.stringify(updated));
+      setRecentSearches([term, ...recentSearches]);
+      await db.runAsync(`INSERT INTO search_cache (query) VALUES (?)`, term);
     } catch (e) {
       console.error("Failed to save search", e);
     }
