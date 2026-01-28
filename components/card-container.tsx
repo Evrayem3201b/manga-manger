@@ -5,6 +5,7 @@ import { router } from "expo-router";
 import { useSQLiteContext } from "expo-sqlite";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
+  Alert,
   Dimensions,
   FlatList,
   Pressable,
@@ -40,6 +41,9 @@ export default function CardContainer({ mangaSimple, search, style }: Props) {
   useEffect(() => {
     setLocalManga(mangaSimple);
     performSync();
+    console.log(
+      "Sync triggered" + " " + mangaSimple.map((m) => m.coverUrl.uri),
+    );
   }, [mangaSimple]);
 
   const downloadItem = async (item: any, coversDir: FileSystem.Directory) => {
@@ -88,26 +92,27 @@ export default function CardContainer({ mangaSimple, search, style }: Props) {
 
       // --- FIRST PASS ---
       for (const item of mangaSimple) {
-        const isRemote = item.coverUrl?.uri?.startsWith("http");
-        const hasPath = !!item.coverUrl?.uri;
         let needsDownload = false;
 
-        if (isRemote || !hasPath) {
+        const file = new FileSystem.File(
+          item.coverUrl.uri || "",
+          `${item.id}.jpg`,
+        );
+        if (!file.exists) {
+          await db.runAsync(`UPDATE manga SET cover_url = NULL`);
           needsDownload = true;
-        } else {
-          const file = new FileSystem.File(coversDir, `${item.id}.jpg`);
-          if (!file.exists) {
-            await db.runAsync(
-              `UPDATE manga SET cover_url = NULL WHERE id = ?`,
-              [item.id],
-            );
-            needsDownload = true;
-          }
         }
 
-        if (needsDownload && item.coverOnlineLink) {
-          const success = await downloadItem(item, coversDir);
-          if (!success) failedItems.push(item);
+        if (needsDownload) {
+          try {
+            const success = await downloadItem(item, coversDir);
+            if (!success) failedItems.push(item);
+          } catch (e) {
+            Alert.alert(
+              "Network Error",
+              "Failed to download covers, connect to a network and try again",
+            );
+          }
         }
       }
 

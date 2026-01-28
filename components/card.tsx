@@ -235,6 +235,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     height: "40%",
+    marginBottom: -1,
   },
   textContainer: { paddingTop: 8, paddingHorizontal: 4 },
   title: { fontSize: 15, lineHeight: 18, fontWeight: "600", color: "#FFFFFF" },

@@ -5,6 +5,7 @@ import * as DocumentPicker from "expo-document-picker";
 import { Directory, File, Paths } from "expo-file-system";
 import * as ImagePicker from "expo-image-picker";
 import { useSQLiteContext } from "expo-sqlite";
+import { openBrowserAsync } from "expo-web-browser";
 import React, { useEffect, useState } from "react";
 import {
   Alert,
@@ -238,30 +239,32 @@ export default function Settings() {
           </View>
           <View style={styles.insightsGrid}>
             <InsightItem
-              icon="flame"
-              label="Streak"
-              value={`${insights.streak} Days`}
-              color="#FF5F6D"
-            />
-            <InsightItem
-              icon="library"
-              label="Top Genre"
-              value={insights.topGenre}
-              color="#FFC371"
-            />
-            <InsightItem
-              icon="calendar"
-              label="This Week"
-              value={`${insights.weeklyChapters} Ch.`}
-              color="#2196F3"
-            />
-            <InsightItem
               icon="trophy"
               label="Longest Read"
               value={insights.longestManga}
               color="#4CAF50"
               isFull
             />
+            <View style={[styles.insightsGrid]}>
+              <InsightItem
+                icon="flame"
+                label="Streak"
+                value={`${insights.streak} Days`}
+                color="#FF5F6D"
+              />
+              <InsightItem
+                icon="library"
+                label="Top Genre"
+                value={insights.topGenre}
+                color="#FFC371"
+              />
+              <InsightItem
+                icon="calendar"
+                label="This Week"
+                value={`${insights.weeklyChapters} Ch.`}
+                color="#2196F3"
+              />
+            </View>
           </View>
         </View>
 
@@ -277,7 +280,18 @@ export default function Settings() {
             icon="trash-outline"
             label="Clear History"
             color="#ff4444"
-            onPress={() => db.runAsync(`DELETE FROM search_cache`)}
+            onPress={() =>
+              Alert.alert("Clear", "Clear search history?", [
+                { text: "Cancel", style: "cancel" },
+                {
+                  text: "Clear All",
+                  style: "destructive",
+
+                  onPress: async () =>
+                    await db.runAsync(`DELETE FROM search_cache`),
+                },
+              ])
+            }
           />
           <SettingItem
             icon="cloud-upload-outline"
@@ -296,6 +310,24 @@ export default function Settings() {
             label="Reset"
             color="#666"
             onPress={resetDatabase}
+          />
+        </View>
+        <View style={[styles.section, { marginBottom: 40 }]}>
+          <Text style={styles.sectionLabel}>About</Text>
+          <SettingItem
+            icon="information-circle-outline"
+            label="App Version"
+            subLabel="v1.0.0"
+            color="#333"
+            showChevron={false}
+          />
+          <SettingItem
+            icon="logo-github"
+            label="Source Code"
+            color="#333"
+            onPress={() =>
+              openBrowserAsync("https://github.com/Evrayem3201b/manga-manger")
+            }
           />
         </View>
       </ScrollView>
@@ -405,9 +437,14 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
     letterSpacing: 1,
   },
-  insightsGrid: { flexDirection: "row", flexWrap: "wrap", gap: 12 },
+  insightsGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 12,
+  },
   insightItem: {
-    width: "48%",
+    flex: 0,
+    width: "47.9%",
     flexDirection: "row",
     alignItems: "center",
     gap: 10,

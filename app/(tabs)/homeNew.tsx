@@ -1,6 +1,7 @@
 import CardContainer from "@/components/card-container";
 import ScreenHug from "@/components/ScreenHug";
 import { Colors } from "@/constants/theme";
+import { getStatusFromName } from "@/utils/getStatus";
 import { MangaDB } from "@/utils/types";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useFocusEffect } from "expo-router";
@@ -213,6 +214,7 @@ export default function Home() {
               </Pressable>
             </View>
             <ScrollView showsVerticalScrollIndicator={false}>
+              {/* Filter logic content here remains the same as your provided code */}
               <Text style={styles.label}>Status & Lists</Text>
               <View style={styles.chipRow}>
                 {[
@@ -221,27 +223,68 @@ export default function Home() {
                   "completed",
                   "plan-to-read",
                   "favorites",
-                ].map((s) => (
+                ].map(async (s) => {
+                  const status = await getStatusFromName(s)?.title;
+                  return (
+                    <Pressable
+                      key={s}
+                      onPress={() => setSelectedStatus(s)}
+                      style={[
+                        styles.chip,
+                        selectedStatus === s && styles.chipActive,
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.chipText,
+                          selectedStatus === s && styles.chipTextActive,
+                        ]}
+                      >
+                        {status}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+              <Text style={[styles.label, { marginTop: 20 }]}>Genres</Text>
+              <View style={styles.chipRow}>
+                {availableGenres.map((g) => (
                   <Pressable
-                    key={s}
-                    onPress={() => setSelectedStatus(s)}
+                    key={g}
+                    onPress={() =>
+                      setSelectedGenres((prev) =>
+                        prev.includes(g)
+                          ? prev.filter((x) => x !== g)
+                          : [...prev, g],
+                      )
+                    }
                     style={[
                       styles.chip,
-                      selectedStatus === s && styles.chipActive,
+                      selectedGenres.includes(g) && styles.chipActive,
                     ]}
                   >
                     <Text
                       style={[
                         styles.chipText,
-                        selectedStatus === s && styles.chipTextActive,
+                        selectedGenres.includes(g) && styles.chipTextActive,
                       ]}
                     >
-                      {s.replace("-", " ")}
+                      {g}
                     </Text>
                   </Pressable>
                 ))}
               </View>
             </ScrollView>
+            <View style={styles.modalFooter}>
+              <Pressable
+                style={styles.applyBtn}
+                onPress={() => setShowFilters(false)}
+              >
+                <Text style={styles.applyBtnText}>
+                  Show {data.length} Results
+                </Text>
+              </Pressable>
+            </View>
           </View>
         </View>
       </Modal>
@@ -333,4 +376,13 @@ const styles = StyleSheet.create({
   },
   chipText: { color: "#666", fontSize: 14, fontWeight: "600" },
   chipTextActive: { color: "#000", fontWeight: "800" },
+  modalFooter: { paddingTop: 10 },
+  applyBtn: {
+    backgroundColor: Colors.dark.primary,
+    height: 54,
+    borderRadius: 16,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  applyBtnText: { fontWeight: "900", fontSize: 16 },
 });
