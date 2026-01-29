@@ -1,7 +1,8 @@
 import { Colors } from "@/constants/theme";
+import { getBadgeColor as BadgeData } from "@/utils/BadgeData";
 import { getStatusFromName } from "@/utils/getStatus";
 import { MangaDB, SimpleDisplay, Tag as TagType } from "@/utils/types";
-import { Ionicons, MaterialCommunityIcons, Octicons } from "@expo/vector-icons";
+import { Ionicons, Octicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import { useSQLiteContext } from "expo-sqlite";
@@ -299,38 +300,29 @@ export default function MangaTemplate({ id }: { id: string }) {
         {/* REPLACED: NEW CONTROL HUB */}
         <View style={styles.floatingActionColumn}>
           <Pressable
-            style={[styles.actionBtn, isPinned && styles.btnPinned]}
-            onPress={togglePin}
+            style={[
+              styles.floatingActionBtn,
+              {
+                backgroundColor: `${BadgeData("favorites")?.badgeBackgroundColor}`,
+              },
+            ]}
+            onPress={() => toggleFavorite()}
           >
-            <MaterialCommunityIcons
-              name={isPinned ? "pin" : "pin-outline"}
-              size={22}
-              color={isPinned ? "#000" : "#fff"}
-            />
-          </Pressable>
-
-          <Pressable
-            style={[styles.actionBtn, inQueue && styles.btnQueue]}
-            onPress={toggleQueue}
-          >
-            <MaterialCommunityIcons
-              name={inQueue ? "layers-triple" : "layers-outline"}
-              size={22}
-              color={inQueue ? "#000" : "#fff"}
-            />
-          </Pressable>
-
-          <View style={styles.actionDivider} />
-
-          <Pressable style={styles.actionBtn} onPress={toggleFavorite}>
             <Ionicons
               name={isFavorite ? "heart" : "heart-outline"}
-              size={24}
+              size={22}
               color={isFavorite ? "#ff4444" : "#fff"}
             />
           </Pressable>
-
-          <Pressable style={styles.actionBtn} onPress={togglePlanToRead}>
+          <Pressable
+            style={[
+              styles.floatingActionBtn,
+              {
+                backgroundColor: `${BadgeData("plan-to-read")?.badgeBackgroundColor}`,
+              },
+            ]}
+            onPress={() => togglePlanToRead()}
+          >
             <Ionicons
               name={isPlanToRead ? "bookmark" : "bookmark-outline"}
               size={22}
@@ -658,15 +650,21 @@ const styles = StyleSheet.create({
   },
   floatingActionColumn: {
     position: "absolute",
-    right: -60,
-    top: 20,
-    gap: 10,
+    right: 12,
+    top: 12,
     zIndex: 10,
-    backgroundColor: "rgba(0,0,0,0.5)",
-    padding: 8,
-    borderRadius: 20,
+    gap: 10,
+  },
+  floatingActionBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "#191919AA", // semi-transparent dark circle
+    justifyContent: "center",
+    alignItems: "center",
     borderWidth: 1,
-    borderColor: "#222",
+    borderColor: "rgba(255, 255, 255, 0.1)",
+    backdropFilter: "blur(10px)", // Works in some RN environments, otherwise just use opacity
   },
   actionBtn: {
     width: 44,

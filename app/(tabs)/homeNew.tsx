@@ -87,6 +87,7 @@ export default function Home() {
         sql += ` JOIN favorites f ON m.id = f.manga_id`;
       else if (selectedStatus === "plan-to-read")
         sql += ` JOIN plan_to_read p ON m.id = p.manga_id`;
+
       if (selectedGenres.length > 0)
         sql += ` JOIN manga_genres mg ON m.id = mg.manga_id`;
       sql += ` WHERE m.name LIKE ?`;
@@ -115,11 +116,12 @@ export default function Home() {
     } catch (e) {
       console.error("Filter Error:", e);
     }
-  }, [selectedStatus, selectedGenres, localQuery, sortBy, isMigrating]);
+  }, [selectedStatus, selectedGenres, localQuery, sortBy, isMigrating, db]);
 
   useFocusEffect(
     useCallback(() => {
       fetchFilteredManga();
+      console.log(data[0]);
     }, [fetchFilteredManga]),
   );
 

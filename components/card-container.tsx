@@ -3,7 +3,7 @@ import { SimpleDisplay } from "@/utils/types";
 import * as FileSystem from "expo-file-system";
 import { router } from "expo-router";
 import { useSQLiteContext } from "expo-sqlite";
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   Dimensions,
   FlatList,
@@ -127,32 +127,32 @@ export default function CardContainer({ mangaSimple, search, style }: Props) {
     }
   };
 
-  useEffect(() => {
-    async function fetchLibrary() {
-      const favs = await db.getAllAsync<{ manga_id: string }>(
-        "SELECT manga_id FROM favorites",
-      );
-      const plan = await db.getAllAsync<{ manga_id: string }>(
-        "SELECT manga_id FROM plan_to_read",
-      );
-      setFavIds(favs.map((f) => f.manga_id));
-      setPlanIds(plan.map((p) => p.manga_id));
-    }
-    fetchLibrary();
-  }, [filterKeyword, db]);
+  // useEffect(() => {
+  //   async function fetchLibrary() {
+  //     const favs = await db.getAllAsync<{ manga_id: string }>(
+  //       "SELECT manga_id FROM favorites",
+  //     );
+  //     const plan = await db.getAllAsync<{ manga_id: string }>(
+  //       "SELECT manga_id FROM plan_to_read",
+  //     );
+  //     setFavIds(favs.map((f) => f.manga_id));
+  //     setPlanIds(plan.map((p) => p.manga_id));
+  //   }
+  //   fetchLibrary();
+  // }, [filterKeyword, db]);
 
-  const filteredManga = useMemo(() => {
-    return localManga.filter((item) => {
-      if (filterKeyword === "all") return true;
-      if (filterKeyword === "favorites") return favIds.includes(item.id);
-      if (filterKeyword === "plan-to-read") return planIds.includes(item.id);
-      return item.status === filterKeyword;
-    });
-  }, [localManga, filterKeyword, favIds, planIds]);
+  // const filteredManga = useMemo(() => {
+  //   return localManga.filter((item) => {
+  //     if (filterKeyword === "all") return true;
+  //     if (filterKeyword === "favorites") return favIds.includes(item.id);
+  //     if (filterKeyword === "plan-to-read") return planIds.includes(item.id);
+  //     return item.status === filterKeyword;
+  //   });
+  // }, [localManga, filterKeyword, favIds, planIds]);
 
   return (
     <FlatList
-      data={filteredManga}
+      data={mangaSimple}
       key={`grid-${numColumns}`}
       numColumns={numColumns}
       contentContainerStyle={[styles.listContent, style]}
@@ -169,8 +169,8 @@ export default function CardContainer({ mangaSimple, search, style }: Props) {
               {...item}
               isAdult={item.isAdult}
               search={search}
-              isFavorite={favIds.includes(item.id)}
-              isPlanned={planIds.includes(item.id)}
+              // isFavorite={favIds.includes(item.id)}
+              // isPlanned={planIds.includes(item.id)}
               isDownloading={syncingIds.includes(item.id)}
             />
           </View>
