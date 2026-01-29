@@ -3,7 +3,7 @@ import ScreenHug from "@/components/ScreenHug";
 import { Colors } from "@/constants/theme";
 import { getStatusFromName } from "@/utils/getStatus";
 import { MangaDB } from "@/utils/types";
-import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "expo-router";
 import { useSQLiteContext } from "expo-sqlite";
 import React, { useCallback, useEffect, useState } from "react";
@@ -147,33 +147,7 @@ export default function Home() {
             onChangeText={setLocalQuery}
           />
         </View>
-        <Pressable
-          style={[
-            styles.sortBtn,
-            sortBy !== "recent" && { borderColor: Colors.dark.primary },
-          ]}
-          onPress={() =>
-            setSortBy((prev) =>
-              prev === "recent"
-                ? "priority"
-                : prev === "priority"
-                  ? "queue"
-                  : "recent",
-            )
-          }
-        >
-          <MaterialCommunityIcons
-            name={
-              sortBy === "queue"
-                ? "layers-triple"
-                : sortBy === "priority"
-                  ? "star-check"
-                  : "clock-outline"
-            }
-            size={22}
-            color={sortBy !== "recent" ? Colors.dark.primary : "#444"}
-          />
-        </Pressable>
+
         <Pressable
           style={[
             styles.filterBtn,

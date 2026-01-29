@@ -1,7 +1,7 @@
 import { Colors } from "@/constants/theme";
 import { getStatusFromName } from "@/utils/getStatus";
 import { SimpleDisplay } from "@/utils/types";
-import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import React from "react";
 import { ActivityIndicator, Image, StyleSheet, Text, View } from "react-native";
@@ -16,15 +16,14 @@ export default function Card({
   currentChap,
   search,
   isAdult,
-  isPinned,
-  inQueue,
+  isFavorite,
+  isPlanned,
   isDownloading,
-  coverOnlineLink,
 }: SimpleDisplay & {
   search?: boolean;
   isAdult?: boolean | number;
-  isPinned?: boolean;
-  inQueue?: boolean;
+  isFavorite?: boolean;
+  isPlanned?: boolean;
   isDownloading?: boolean;
 }) {
   const shouldHideImage = !!isAdult;
@@ -34,26 +33,22 @@ export default function Card({
       <View style={styles.imageWrapper}>
         <Badge status={getStatusFromName(status)} />
 
-        {/* --- LIBRARY SPECIFIC BADGES (Hidden in Search) --- */}
+        {/* --- REFACTORED BADGE CONTAINER --- */}
         {!search && (
-          <View style={styles.libraryBadges}>
-            {isPinned && (
+          <View style={styles.libraryBadgesContainer}>
+            {isPlanned && (
               <View
                 style={[
                   styles.miniBadge,
                   { backgroundColor: Colors.dark.primary },
                 ]}
               >
-                <MaterialCommunityIcons name="pin" size={12} color="#000" />
+                <Ionicons name="bookmark" size={11} color="#000" />
               </View>
             )}
-            {inQueue && (
-              <View style={[styles.miniBadge, { backgroundColor: "#50fa7b" }]}>
-                <MaterialCommunityIcons
-                  name="layers-triple"
-                  size={12}
-                  color="#000"
-                />
+            {isFavorite && (
+              <View style={[styles.miniBadge, { backgroundColor: "#ff5555" }]}>
+                <Ionicons name="heart" size={12} color="#fff" />
               </View>
             )}
           </View>
@@ -97,13 +92,10 @@ export default function Card({
               </View>
             )}
 
-            {/* Indicator overlay for active download process */}
             {isDownloading && (
               <View style={styles.downloadOverlay}>
                 <ActivityIndicator size="small" color={Colors.dark.primary} />
-                <Text style={styles.loadingText}>
-                  {isDownloading ? "Downloading..." : "Syncing..."}
-                </Text>
+                <Text style={styles.loadingText}>Downloading...</Text>
               </View>
             )}
 
@@ -164,22 +156,31 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 6,
+    position: "relative",
   },
-  libraryBadges: {
+  // Simplified this container to handle the layout
+  libraryBadgesContainer: {
     position: "absolute",
-    top: 35,
+    top: 15, // Below the status badge
     right: 8,
-    gap: 5,
-    zIndex: 10,
+    gap: 6, // Vertical spacing between heart and bookmark
+    zIndex: 30,
+    alignItems: "center",
   },
   miniBadge: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
     justifyContent: "center",
     alignItems: "center",
-    borderWidth: 1,
-    borderColor: "rgba(0,0,0,0.2)",
+    borderWidth: 1.5,
+    borderColor: "rgba(0,0,0,0.3)",
+    // Added a slight shadow to make them pop against busy covers
+    elevation: 3,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.4,
+    shadowRadius: 2,
   },
   image: { width: "100%", height: "100%" },
   adultPlaceholder: { justifyContent: "center", alignItems: "center" },

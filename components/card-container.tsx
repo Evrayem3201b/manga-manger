@@ -5,7 +5,6 @@ import { router } from "expo-router";
 import { useSQLiteContext } from "expo-sqlite";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
-  Alert,
   Dimensions,
   FlatList,
   Pressable,
@@ -41,17 +40,17 @@ export default function CardContainer({ mangaSimple, search, style }: Props) {
   useEffect(() => {
     setLocalManga(mangaSimple);
     performSync();
-    console.log(
-      "Sync triggered" + " " + mangaSimple.map((m) => m.coverUrl.uri),
-    );
   }, [mangaSimple]);
 
   const downloadItem = async (item: any, coversDir: FileSystem.Directory) => {
+    if (!item.coverOnlineLink) return false;
+
     try {
       setSyncingIds((prev) => [...prev, item.id]);
 
       const destinationFile = new FileSystem.File(coversDir, `${item.id}.jpg`);
 
+      // SDK 54: The correct way to download using a File instance
       const output = await FileSystem.File.downloadFileAsync(
         item.coverOnlineLink,
         destinationFile,
@@ -68,10 +67,10 @@ export default function CardContainer({ mangaSimple, search, style }: Props) {
           m.id === item.id ? { ...m, coverUrl: { uri: output.uri } } : m,
         ),
       );
-      return true; // Success
+      return true;
     } catch (e) {
       console.error(`Download failed for ${item.name}:`, e);
-      return false; // Failed
+      return false;
     } finally {
       setSyncingIds((prev) => prev.filter((id) => id !== item.id));
     }
@@ -88,44 +87,41 @@ export default function CardContainer({ mangaSimple, search, style }: Props) {
         FileSystem.Paths.document,
         "covers",
       );
-      if (!coversDir.exists) await coversDir.create();
 
-      // --- FIRST PASS ---
+      if (!coversDir.exists) {
+        await coversDir.create();
+      }
+
       for (const item of mangaSimple) {
         let needsDownload = false;
 
-        const file = new FileSystem.File(
-          item.coverUrl.uri || "",
-          `${item.id}.jpg`,
-        );
-        if (!file.exists) {
-          await db.runAsync(`UPDATE manga SET cover_url = NULL`);
+        // Check relative to OUR local directory (Device-specific)
+        const file = new FileSystem.File(coversDir, `${item.id}.jpg`);
+
+        // If file is physically missing OR the DB path is a remote URL
+        if (!file.exists || item.coverUrl?.uri?.startsWith("http")) {
+          // Clear stale DB entry (Essential for imported DBs)
+          await db.runAsync(`UPDATE manga SET cover_url = NULL WHERE id = ?`, [
+            item.id,
+          ]);
           needsDownload = true;
         }
 
-        if (needsDownload) {
-          try {
-            const success = await downloadItem(item, coversDir);
-            if (!success) failedItems.push(item);
-          } catch (e) {
-            Alert.alert(
-              "Network Error",
-              "Failed to download covers, connect to a network and try again",
-            );
-          }
+        if (needsDownload && item.coverOnlineLink) {
+          const success = await downloadItem(item, coversDir);
+          if (!success) failedItems.push(item);
         }
       }
 
-      // --- RETRY PASS (If there are failed items) ---
+      // Retry Logic
       if (failedItems.length > 0) {
-        console.log(`Retrying ${failedItems.length} failed downloads...`);
-        // Optional: Wait 2 seconds before retrying
         await new Promise((resolve) => setTimeout(resolve, 2000));
-
         for (const item of failedItems) {
           await downloadItem(item, coversDir);
         }
       }
+    } catch (err) {
+      console.error("Sync process failed:", err);
     } finally {
       isSyncingRef.current = false;
     }
@@ -173,6 +169,8 @@ export default function CardContainer({ mangaSimple, search, style }: Props) {
               {...item}
               isAdult={item.isAdult}
               search={search}
+              isFavorite={favIds.includes(item.id)}
+              isPlanned={planIds.includes(item.id)}
               isDownloading={syncingIds.includes(item.id)}
             />
           </View>
