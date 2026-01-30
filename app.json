@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "Manga Manger",
-    "slug": "manga-manger",
+    "name": "Manga Vault",
+    "slug": "manga-vault",
     "scheme": "manga-manger",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -23,11 +23,7 @@
       "output": "static",
       "favicon": "./assets/images/manga-manger-logo.jpg"
     },
-    "plugins": [
-      "expo-asset",
-      "expo-router",
-      "expo-web-browser"
-    ],
+    "plugins": ["expo-asset", "expo-router", "expo-web-browser"],
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
