@@ -132,6 +132,10 @@ export default function Settings() {
 
   async function databaseExport() {
     try {
+      await db.runAsync(
+        `INSERT OR REPLACE INTO app_meta (prop, value)
+   VALUES ('needs_cover_sync', '1')`,
+      );
       const dbFile = new File(Paths.document.uri, "SQLite/manga.db");
       const destinationFolder = await Directory.pickDirectoryAsync();
       if (!destinationFolder) return;
@@ -142,6 +146,10 @@ export default function Settings() {
       const dbBytes = await dbFile.bytes();
       await backupFile.write(dbBytes);
       Alert.alert("Success", "Backup saved!");
+      await db.runAsync(
+        `INSERT OR REPLACE INTO app_meta (prop, value)
+   VALUES ('needs_cover_sync', '0')`,
+      );
     } catch (e) {
       Alert.alert("Export Error", "System blocked copy.");
     }
@@ -164,6 +172,7 @@ export default function Settings() {
               const targetFile = new File(dbPath);
               if (targetFile.exists) await targetFile.delete();
               await new File(pickedFile.uri).copy(targetFile);
+
               Alert.alert("Success", "Please restart the app.");
             } catch (err) {
               Alert.alert("Error", "File is locked.");

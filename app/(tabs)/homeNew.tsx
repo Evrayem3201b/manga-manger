@@ -34,7 +34,11 @@ export default function Home() {
   const runMigrations = useCallback(async () => {
     try {
       const tableInfo: any = await db.getAllAsync(`PRAGMA table_info(manga)`);
+      const appMetaInfo: any = await db.getAllAsync(
+        `PRAGMA table_info(app_meta)`,
+      );
       const columns = tableInfo.map((c: any) => c.name);
+      const metaColumns = appMetaInfo.map((c: any) => c.name);
       if (!columns.includes("is_pinned")) {
         await db.runAsync(
           `ALTER TABLE manga ADD COLUMN is_pinned INTEGER DEFAULT 0`,
@@ -43,6 +47,14 @@ export default function Home() {
       if (!columns.includes("queue_order")) {
         await db.runAsync(
           `ALTER TABLE manga ADD COLUMN queue_order INTEGER DEFAULT 0`,
+        );
+      }
+      if (!metaColumns.includes("prop")) {
+        await db.runAsync(`ALTER TABLE app_meta ADD COLUMN prop TEXT`);
+      }
+      if (!metaColumns.includes("value")) {
+        await db.runAsync(
+          `ALTER TABLE app_meta ADD COLUMN value TEXT DEFAULT '0'`,
         );
       }
       return true;
