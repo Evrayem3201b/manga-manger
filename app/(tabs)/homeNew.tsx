@@ -44,6 +44,11 @@ export default function Home() {
           `ALTER TABLE manga ADD COLUMN is_pinned INTEGER DEFAULT 0`,
         );
       }
+      if (!columns.includes("is_adult")) {
+        await db.runAsync(
+          `ALTER TABLE manga ADD COLUMN is_adult BOOLEAN DEFAULT FALSE`,
+        );
+      }
       if (!columns.includes("queue_order")) {
         await db.runAsync(
           `ALTER TABLE manga ADD COLUMN queue_order INTEGER DEFAULT 0`,

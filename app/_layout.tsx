@@ -123,6 +123,8 @@ CREATE TABLE IF NOT EXISTS search_cache (
   created_at INTEGER
 );
 
+
+
 CREATE TABLE IF NOT EXISTS app_meta (
   prop TEXT,
   value TEXT DEFAULT '0'

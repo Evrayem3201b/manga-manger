@@ -34,28 +34,36 @@ export default function CardContainer({ mangaSimple, search, style }: Props) {
   const [localManga, setLocalManga] = useState(mangaSimple);
   const [syncingIds, setSyncingIds] = useState<string[]>([]);
   const isSyncingRef = useRef(false);
+  const hasAttemptedSync = useRef(false); // Track if we've already tried syncing this session
 
+  // 2. The Trigger: Watch mangaSimple for data
   useEffect(() => {
-    async function checker() {
-      if (search) return;
+    if (search || mangaSimple.length === 0 || hasAttemptedSync.current) return;
 
-      // Check the flag we set during export
-      const flag = await db.getFirstAsync<{ value: string }>(
-        `SELECT value FROM app_meta WHERE prop = 'needs_cover_sync'`,
-      );
+    async function runSyncFlow() {
+      hasAttemptedSync.current = true; // Lock immediately to prevent double-runs
 
-      // Perform sync regardless (covers missing files too)
-      await performSync();
-
-      if (flag?.value === "1") {
-        await db.runAsync(
-          `UPDATE app_meta SET value = '0' WHERE prop = 'needs_cover_sync'`,
+      try {
+        // Check for the restore flag
+        const flag = await db.getFirstAsync<{ value: string }>(
+          `SELECT value FROM app_meta WHERE prop = 'needs_cover_sync'`,
         );
-        Alert.alert("Library restored", "Covers synced successfully");
+
+        await performSync();
+
+        if (flag?.value === "1") {
+          await db.runAsync(
+            `UPDATE app_meta SET value = '0' WHERE prop = 'needs_cover_sync'`,
+          );
+          Alert.alert("Library restored", "Covers synced successfully");
+        }
+      } catch (e) {
+        console.error("Sync Flow Error:", e);
       }
     }
-    checker();
-  }, []);
+
+    runSyncFlow();
+  }, [mangaSimple, db]); // Runs when manga list arrives or DB changes
 
   useEffect(() => {
     setLocalManga(mangaSimple);

@@ -49,13 +49,14 @@ export default function Search() {
         saveSearch(query.trim());
       }
     }, 600);
+
     return () => clearTimeout(t);
   }, [query]);
 
   const loadRecentSearches = async () => {
     try {
       const searchCache: { query: string }[] = await db.getAllAsync(
-        `SELECT query FROM search_cache`,
+        `SELECT query FROM search_cache ORDER BY created_at DESC`,
       );
 
       if (searchCache) setRecentSearches(searchCache.map((s) => s.query));
@@ -67,7 +68,10 @@ export default function Search() {
   const saveSearch = async (term: string) => {
     try {
       setRecentSearches([term, ...recentSearches]);
-      await db.runAsync(`INSERT INTO search_cache (query) VALUES (?)`, term);
+      await db.runAsync(
+        `INSERT INTO search_cache (query, created_at) VALUES (?, ?)`,
+        [term, Date.now()],
+      );
     } catch (e) {
       console.error("Failed to save search", e);
     }
@@ -360,13 +364,13 @@ const styles = StyleSheet.create({
     borderColor: Colors.dark.primary,
   },
   // Recent Searches Styling
-  recentContainer: { flex: 1 },
+  recentContainer: { flex: 1, marginBottom: 90 },
   recentHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
     marginTop: 10,
-    marginBottom: 20,
+
     paddingHorizontal: 5,
   },
   recentTitle: { color: "#fff", fontSize: 18, fontWeight: "700" },
@@ -380,7 +384,12 @@ const styles = StyleSheet.create({
     borderBottomColor: "#111",
   },
   recentLeft: { flexDirection: "row", alignItems: "center", gap: 12 },
-  recentText: { color: "#888", fontSize: 16, fontWeight: "500" },
+  recentText: {
+    color: "#888",
+    fontSize: 16,
+    fontWeight: "500",
+    width: "70%",
+  },
   emptyRecent: {
     flex: 1,
     alignItems: "center",
