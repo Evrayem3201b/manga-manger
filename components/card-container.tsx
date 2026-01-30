@@ -31,9 +31,6 @@ interface Props {
 export default function CardContainer({ mangaSimple, search, style }: Props) {
   const db = useSQLiteContext();
   const filterKeyword = useFilterStore((state) => state.filter);
-  const [favIds, setFavIds] = useState<string[]>([]);
-  const [planIds, setPlanIds] = useState<string[]>([]);
-
   const [localManga, setLocalManga] = useState(mangaSimple);
   const [syncingIds, setSyncingIds] = useState<string[]>([]);
   const isSyncingRef = useRef(false);
@@ -42,19 +39,18 @@ export default function CardContainer({ mangaSimple, search, style }: Props) {
     async function checker() {
       if (search) return;
 
+      // Check the flag we set during export
       const flag = await db.getFirstAsync<{ value: string }>(
         `SELECT value FROM app_meta WHERE prop = 'needs_cover_sync'`,
       );
 
+      // Perform sync regardless (covers missing files too)
+      await performSync();
+
       if (flag?.value === "1") {
-        await performSync();
-
         await db.runAsync(
-          `UPDATE app_meta SET value = '0'
-         WHERE prop = 'needs_cover_sync'`,
+          `UPDATE app_meta SET value = '0' WHERE prop = 'needs_cover_sync'`,
         );
-        console.log(flag);
-
         Alert.alert("Library restored", "Covers synced successfully");
       }
     }
@@ -71,9 +67,9 @@ export default function CardContainer({ mangaSimple, search, style }: Props) {
     try {
       setSyncingIds((prev) => [...prev, item.id]);
 
+      // Ensure filename is clean
       const destinationFile = new FileSystem.File(coversDir, `${item.id}.jpg`);
 
-      // SDK 54: The correct way to download using a File instance
       const output = await FileSystem.File.downloadFileAsync(
         item.coverOnlineLink,
         destinationFile,
@@ -106,6 +102,7 @@ export default function CardContainer({ mangaSimple, search, style }: Props) {
     const failedItems: typeof mangaSimple = [];
 
     try {
+      // Use the standard document path for covers
       const coversDir = new FileSystem.Directory(
         FileSystem.Paths.document,
         "covers",
@@ -118,19 +115,12 @@ export default function CardContainer({ mangaSimple, search, style }: Props) {
       for (const item of mangaSimple) {
         let needsDownload = false;
 
-        // Check relative to OUR local directory (Device-specific)
-        const file = new FileSystem.File(
-          item.coverUrl.uri,
-          `${item.id}.512.jpg.jpg`,
-        );
+        // SAFE PATH CHECK:
+        // We check if the file exists physically in the 'covers' folder
+        const localFile = new FileSystem.File(coversDir, `${item.id}.jpg`);
 
-        // If file is physically missing OR the DB path is a remote URL
-        if (!file.exists) {
-          // Clear stale DB entry (Essential for imported DBs)
-          await db.runAsync(`UPDATE manga SET cover_url = NULL WHERE id = ?`, [
-            item.id,
-          ]);
-
+        // If the database path is empty OR the physical file is missing
+        if (!item.coverUrl?.uri || !localFile.exists) {
           needsDownload = true;
         }
 
@@ -140,46 +130,23 @@ export default function CardContainer({ mangaSimple, search, style }: Props) {
         }
       }
 
-      // Retry Logic
+      // Quick retry for failed items
       if (failedItems.length > 0) {
-        await new Promise((resolve) => setTimeout(resolve, 2000));
+        await new Promise((resolve) => setTimeout(resolve, 1500));
         for (const item of failedItems) {
           await downloadItem(item, coversDir);
         }
       }
     } catch (err) {
-      Alert.alert("Sync process failed:", `${err}`);
+      console.error("Sync process error:", err);
     } finally {
       isSyncingRef.current = false;
     }
   };
 
-  // useEffect(() => {
-  //   async function fetchLibrary() {
-  //     const favs = await db.getAllAsync<{ manga_id: string }>(
-  //       "SELECT manga_id FROM favorites",
-  //     );
-  //     const plan = await db.getAllAsync<{ manga_id: string }>(
-  //       "SELECT manga_id FROM plan_to_read",
-  //     );
-  //     setFavIds(favs.map((f) => f.manga_id));
-  //     setPlanIds(plan.map((p) => p.manga_id));
-  //   }
-  //   fetchLibrary();
-  // }, [filterKeyword, db]);
-
-  // const filteredManga = useMemo(() => {
-  //   return localManga.filter((item) => {
-  //     if (filterKeyword === "all") return true;
-  //     if (filterKeyword === "favorites") return favIds.includes(item.id);
-  //     if (filterKeyword === "plan-to-read") return planIds.includes(item.id);
-  //     return item.status === filterKeyword;
-  //   });
-  // }, [localManga, filterKeyword, favIds, planIds]);
-
   return (
     <FlatList
-      data={mangaSimple}
+      data={localManga}
       key={`grid-${numColumns}`}
       numColumns={numColumns}
       contentContainerStyle={[styles.listContent, style]}

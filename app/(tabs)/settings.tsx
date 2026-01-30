@@ -63,7 +63,6 @@ export default function Settings() {
         plan: plan?.count || 0,
       });
 
-      // Simple Insights Logic
       const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
       const weekly = await db.getFirstAsync<{ total: number }>(
         `SELECT SUM(chapters_read) as total FROM reading_history WHERE logged_at > ?`,
@@ -119,7 +118,7 @@ export default function Settings() {
       const userDir = new Directory(Paths.document.uri, "user");
       if (!userDir.exists) await userDir.create();
       const avatarFile = new File(userDir.uri, "avatar.jpg");
-      if (avatarFile.exists) avatarFile.delete();
+      if (avatarFile.exists) await avatarFile.delete();
       await new File(asset.uri).copy(avatarFile);
       await db.runAsync(`UPDATE "user" SET avatar_path = ? WHERE id = 1`, [
         avatarFile.uri,
@@ -131,27 +130,70 @@ export default function Settings() {
   }
 
   async function databaseExport() {
+    const tempFileName = "export_sync_temp.db";
+    const cleanDocUri = Paths.document.uri.endsWith("/")
+      ? Paths.document.uri.slice(0, -1)
+      : Paths.document.uri;
+
+    const dbFolderPath = `${cleanDocUri}/SQLite`;
+    const tempBackupUri = `${dbFolderPath}/${tempFileName}`;
+
     try {
-      await db.runAsync(
-        `INSERT OR REPLACE INTO app_meta (prop, value)
-   VALUES ('needs_cover_sync', '1')`,
-      );
-      const dbFile = new File(Paths.document.uri, "SQLite/manga.db");
+      // 1. Flush main DB
+      await db.runAsync(`PRAGMA wal_checkpoint(FULL)`);
+
+      const originalDbFile = new File(dbFolderPath, "manga.db");
+      if (!originalDbFile.exists) throw new Error("Source DB not found.");
+
+      const tempFile = new File(dbFolderPath, tempFileName);
+      if (tempFile.exists) await tempFile.delete();
+
+      // 2. Copy the file
+      await originalDbFile.copy(tempFile);
+
+      // 3. CRITICAL: SQLite engine needs a raw path without "file://"
+      // We strip "file://" from the beginning of the string
+      const rawSqlPath = tempBackupUri.replace("file://", "");
+
+      // 4. ATTACH and Modify
+      await db.runAsync(`ATTACH DATABASE '${rawSqlPath}' AS backup`);
+
+      try {
+        await db.runAsync(`UPDATE backup.manga SET cover_url = ''`);
+        await db.runAsync(
+          `INSERT OR REPLACE INTO backup.app_meta (prop, value) VALUES ('needs_cover_sync', '1')`,
+        );
+      } finally {
+        // Safe detach
+        await db.runAsync(`DETACH DATABASE backup`);
+      }
+
+      // 5. Export to user-picked directory
       const destinationFolder = await Directory.pickDirectoryAsync();
-      if (!destinationFolder) return;
+      if (!destinationFolder) {
+        await tempFile.delete();
+        return;
+      }
+
       const backupFile = destinationFolder.createFile(
-        "manga_backup.db",
+        `manga_backup_${Date.now()}.db`,
         "application/x-sqlite3",
       );
-      const dbBytes = await dbFile.bytes();
-      await backupFile.write(dbBytes);
-      Alert.alert("Success", "Backup saved!");
-      await db.runAsync(
-        `INSERT OR REPLACE INTO app_meta (prop, value)
-   VALUES ('needs_cover_sync', '0')`,
-      );
-    } catch (e) {
-      Alert.alert("Export Error", "System blocked copy.");
+
+      const modifiedBytes = await tempFile.bytes();
+      await backupFile.write(modifiedBytes);
+
+      // 6. Final Cleanup
+      await tempFile.delete();
+
+      Alert.alert("Success", "Backup exported successfully!");
+    } catch (e: any) {
+      console.error("Detailed Export Error:", e);
+      // Fallback detach
+      try {
+        await db.runAsync(`DETACH DATABASE backup`);
+      } catch {}
+      Alert.alert("Export Error", `Database sync failed.\n\n${e.message}`);
     }
   }
 
@@ -172,7 +214,6 @@ export default function Settings() {
               const targetFile = new File(dbPath);
               if (targetFile.exists) await targetFile.delete();
               await new File(pickedFile.uri).copy(targetFile);
-
               Alert.alert("Success", "Please restart the app.");
             } catch (err) {
               Alert.alert("Error", "File is locked.");
@@ -295,7 +336,6 @@ export default function Settings() {
                 {
                   text: "Clear All",
                   style: "destructive",
-
                   onPress: async () =>
                     await db.runAsync(`DELETE FROM search_cache`),
                 },
