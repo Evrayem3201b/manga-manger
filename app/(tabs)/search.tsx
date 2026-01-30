@@ -3,7 +3,6 @@ import ScreenHug from "@/components/ScreenHug";
 import { Colors } from "@/constants/theme";
 import { useSearchManga } from "@/hooks/fetching/useSearchManga";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect } from "expo-router";
 import { useSQLiteContext } from "expo-sqlite";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
@@ -77,12 +76,12 @@ export default function Search() {
   const removeSearch = async (term: string) => {
     const updated = recentSearches.filter((s) => s !== term);
     setRecentSearches(updated);
-    await AsyncStorage.setItem(RECENT_SEARCHES_KEY, JSON.stringify(updated));
+    await db.runAsync(`DELETE FROM search_cache WHERE query = ?`, term);
   };
 
   const clearAllRecent = async () => {
     setRecentSearches([]);
-    await AsyncStorage.removeItem(RECENT_SEARCHES_KEY);
+    await db.runAsync(`DELETE FROM search_cache`);
   };
 
   // 2. Extract dynamic genres from results

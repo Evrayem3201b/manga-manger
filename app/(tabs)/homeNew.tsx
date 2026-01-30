@@ -1,7 +1,6 @@
 import CardContainer from "@/components/card-container";
 import ScreenHug from "@/components/ScreenHug";
 import { Colors } from "@/constants/theme";
-import { getStatusFromName } from "@/utils/getStatus";
 import { MangaDB } from "@/utils/types";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "expo-router";
@@ -9,7 +8,6 @@ import { useSQLiteContext } from "expo-sqlite";
 import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   Modal,
   Pressable,
   ScrollView,
@@ -27,13 +25,12 @@ export default function Home() {
   const [selectedStatus, setSelectedStatus] = useState<string | null>("all");
   const [selectedGenres, setSelectedGenres] = useState<string[]>([]);
   const [availableGenres, setAvailableGenres] = useState<string[]>([]);
-  const [sortBy, setSortBy] = useState<"recent" | "priority" | "queue">(
-    "recent",
-  );
   const [isMigrating, setIsMigrating] = useState(true);
 
   const activeFilterCount =
     (selectedStatus !== "all" ? 1 : 0) + selectedGenres.length;
+
+  // --- MIGRATIONS ---
   const runMigrations = useCallback(async () => {
     try {
       const tableInfo: any = await db.getAllAsync(`PRAGMA table_info(manga)`);
@@ -48,7 +45,6 @@ export default function Home() {
           `ALTER TABLE manga ADD COLUMN queue_order INTEGER DEFAULT 0`,
         );
       }
-
       return true;
     } catch (e) {
       console.error("Migration Error:", e);
@@ -56,64 +52,105 @@ export default function Home() {
     }
   }, [db]);
 
+  // --- DYNAMIC GENRE FETCHING ---
+  const getGenres = useCallback(
+    async (status: string | null) => {
+      try {
+        let sql = `
+        SELECT DISTINCT g.genre 
+        FROM manga_genres g
+        JOIN manga m ON g.manga_id = m.id
+      `;
+        let params: any[] = [];
+
+        if (status && status !== "all") {
+          if (status === "favorites") {
+            sql += ` WHERE EXISTS(SELECT 1 FROM favorites f WHERE f.manga_id = m.id)`;
+          } else if (status === "plan-to-read") {
+            sql += ` WHERE EXISTS(SELECT 1 FROM plan_to_read p WHERE p.manga_id = m.id)`;
+          } else {
+            sql += ` WHERE m.status = ?`;
+            params.push(status);
+          }
+        }
+
+        sql += ` ORDER BY g.genre ASC`;
+
+        const result: { genre: string }[] = await db.getAllAsync(sql, params);
+        const validGenres = result.map((r) => r.genre);
+        setAvailableGenres(validGenres);
+
+        // Cleanup selected genres if they are no longer in the valid list for this status
+        setSelectedGenres((prev) =>
+          prev.filter((g) => validGenres.includes(g)),
+        );
+      } catch (e) {
+        console.error("Genre fetch error:", e);
+      }
+    },
+    [db],
+  );
+
+  // --- FILTERED FETCH ---
+  const fetchFilteredManga = useCallback(async () => {
+    if (isMigrating) return;
+    try {
+      let params: any[] = [`%${localQuery}%`];
+
+      let sql = `
+        SELECT m.*, 
+          EXISTS(SELECT 1 FROM favorites f WHERE f.manga_id = m.id) AS is_favorite,
+          EXISTS(SELECT 1 FROM plan_to_read p WHERE p.manga_id = m.id) AS is_planned,
+          (SELECT GROUP_CONCAT(genre) FROM manga_genres WHERE manga_id = m.id) AS genres
+        FROM manga m
+        WHERE m.name LIKE ?
+      `;
+
+      if (selectedStatus && selectedStatus !== "all") {
+        if (selectedStatus === "favorites") {
+          sql += ` AND EXISTS(SELECT 1 FROM favorites f WHERE f.manga_id = m.id)`;
+        } else if (selectedStatus === "plan-to-read") {
+          sql += ` AND EXISTS(SELECT 1 FROM plan_to_read p WHERE p.manga_id = m.id)`;
+        } else {
+          sql += ` AND m.status = ?`;
+          params.push(selectedStatus);
+        }
+      }
+
+      if (selectedGenres.length > 0) {
+        selectedGenres.forEach((genre) => {
+          sql += ` AND EXISTS(SELECT 1 FROM manga_genres mg WHERE mg.manga_id = m.id AND mg.genre = ?)`;
+          params.push(genre);
+        });
+      }
+
+      sql += ` ORDER BY m.updated_at DESC`;
+
+      const fetchedData: MangaDB[] = await db.getAllAsync(sql, params);
+      setData(fetchedData);
+    } catch (e) {
+      console.error("Fetch Error:", e);
+    }
+  }, [selectedStatus, selectedGenres, localQuery, isMigrating, db]);
+
+  // Initial load
   useEffect(() => {
     async function init() {
       const success = await runMigrations();
-      if (!success)
-        Alert.alert("Database Error", "Structure could not be updated.");
-      setIsMigrating(false);
-      getGenres();
+      if (success) {
+        setIsMigrating(false);
+        getGenres(selectedStatus);
+      }
     }
     init();
   }, [runMigrations]);
 
-  async function getGenres() {
-    try {
-      const result: { genre: string }[] = await db.getAllAsync(
-        `SELECT DISTINCT genre FROM manga_genres ORDER BY genre ASC`,
-      );
-      setAvailableGenres(result.map((r) => r.genre));
-    } catch (e) {
-      console.error("Genre fetch error:", e);
+  // Sync genres when status changes
+  useEffect(() => {
+    if (!isMigrating) {
+      getGenres(selectedStatus);
     }
-  }
-
-  const fetchFilteredManga = useCallback(async () => {
-    if (isMigrating) return;
-    try {
-      let params = `%${localQuery}%`;
-      let sql = `SELECT m.*, 
-                            EXISTS(SELECT 1 FROM favorites f WHERE f.manga_id = m.id) AS is_favorite,
-                             EXISTS(SELECT 1 FROM plan_to_read p WHERE p.manga_id = m.id) AS is_planned,
-                            GROUP_CONCAT(g.genre, ',') AS genres  FROM manga m LEFT JOIN manga_genres g ON g.manga_id = m.id WHERE m.name LIKE ? GROUP BY m.id ORDER BY m.updated_at DESC`;
-
-      const fetchedData: MangaDB[] = await db.getAllAsync(sql, params);
-
-      if (selectedStatus === "favorites") {
-        const newData = fetchedData.filter((m) => m.is_favorite === 1);
-        setData(newData);
-        return;
-      }
-      if (selectedStatus === "plan-to-read") {
-        const newData = fetchedData.filter((m) => m.is_planned === 1);
-        setData(newData);
-        return;
-      }
-
-      if (selectedGenres.length > 0) {
-        const newData = fetchedData.filter((m) => {
-          const mangaGenres = m.genres?.split(",");
-
-          return mangaGenres?.some((genre) => selectedGenres.includes(genre));
-        });
-        setData(newData);
-        return;
-      }
-      setData(fetchedData);
-    } catch (e) {
-      Alert.alert("Filter Error", "Error: " + e);
-    }
-  }, [selectedStatus, selectedGenres, localQuery, sortBy, isMigrating, db]);
+  }, [selectedStatus, isMigrating, getGenres]);
 
   useFocusEffect(
     useCallback(() => {
@@ -170,8 +207,6 @@ export default function Home() {
           coverUrl: { uri: item.cover_url },
           currentChap: item.current_chap,
           isAdult: item.is_adult === 1,
-          isPinned: item.is_pinned === 1,
-          inQueue: (item.queue_order ?? 0) > 0,
           coverOnlineLink: item.cover_online_link,
           isFavorite: !!item.is_favorite,
           isPlanToRead: !!item.is_planned,
@@ -187,8 +222,8 @@ export default function Home() {
                 <Ionicons name="close" size={24} color="#555" />
               </Pressable>
             </View>
+
             <ScrollView showsVerticalScrollIndicator={false}>
-              {/* Filter logic content here remains the same as your provided code */}
               <Text style={styles.label}>Status & Lists</Text>
               <View style={styles.chipRow}>
                 {[
@@ -197,58 +232,64 @@ export default function Home() {
                   "completed",
                   "plan-to-read",
                   "favorites",
-                ].map(async (s) => {
-                  const status = await getStatusFromName(s)?.title;
-                  return (
-                    <Pressable
-                      key={s}
-                      onPress={() => setSelectedStatus(s)}
-                      style={[
-                        styles.chip,
-                        selectedStatus === s && styles.chipActive,
-                      ]}
-                    >
-                      <Text
-                        style={[
-                          styles.chipText,
-                          selectedStatus === s && styles.chipTextActive,
-                        ]}
-                      >
-                        {status}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
-              <Text style={[styles.label, { marginTop: 20 }]}>Genres</Text>
-              <View style={styles.chipRow}>
-                {availableGenres.map((g) => (
+                  "cancelled",
+                ].map((s) => (
                   <Pressable
-                    key={g}
-                    onPress={() =>
-                      setSelectedGenres((prev) =>
-                        prev.includes(g)
-                          ? prev.filter((x) => x !== g)
-                          : [...prev, g],
-                      )
-                    }
+                    key={s}
+                    onPress={() => setSelectedStatus(s)}
                     style={[
                       styles.chip,
-                      selectedGenres.includes(g) && styles.chipActive,
+                      selectedStatus === s && styles.chipActive,
                     ]}
                   >
                     <Text
                       style={[
                         styles.chipText,
-                        selectedGenres.includes(g) && styles.chipTextActive,
+                        selectedStatus === s && styles.chipTextActive,
                       ]}
                     >
-                      {g}
+                      {s.replace(/-/g, " ").toUpperCase()}
                     </Text>
                   </Pressable>
                 ))}
               </View>
+
+              <Text style={[styles.label, { marginTop: 25 }]}>
+                Genres ({availableGenres.length})
+              </Text>
+              <View style={styles.chipRow}>
+                {availableGenres.length > 0 ? (
+                  availableGenres.map((g) => (
+                    <Pressable
+                      key={g}
+                      onPress={() =>
+                        setSelectedGenres((prev) =>
+                          prev.includes(g)
+                            ? prev.filter((x) => x !== g)
+                            : [...prev, g],
+                        )
+                      }
+                      style={[
+                        styles.chip,
+                        selectedGenres.includes(g) && styles.chipActive,
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.chipText,
+                          selectedGenres.includes(g) && styles.chipTextActive,
+                        ]}
+                      >
+                        {g}
+                      </Text>
+                    </Pressable>
+                  ))
+                ) : (
+                  <Text style={styles.emptyText}>No genres found</Text>
+                )}
+              </View>
             </ScrollView>
+
             <View style={styles.modalFooter}>
               <Pressable
                 style={styles.applyBtn}
@@ -292,16 +333,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#222",
   },
-  sortBtn: {
-    width: 52,
-    height: 52,
-    backgroundColor: "#111",
-    borderRadius: 16,
-    justifyContent: "center",
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: "#222",
-  },
   filterBtnActive: {
     backgroundColor: Colors.dark.primary,
     borderColor: Colors.dark.primary,
@@ -316,7 +347,7 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 32,
     borderTopRightRadius: 32,
     padding: 24,
-    height: "70%",
+    height: "75%",
     borderTopWidth: 1,
     borderColor: "#222",
   },
@@ -350,7 +381,7 @@ const styles = StyleSheet.create({
   },
   chipText: { color: "#666", fontSize: 14, fontWeight: "600" },
   chipTextActive: { color: "#000", fontWeight: "800" },
-  modalFooter: { paddingTop: 10 },
+  modalFooter: { paddingTop: 20 },
   applyBtn: {
     backgroundColor: Colors.dark.primary,
     height: 54,
@@ -358,5 +389,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  applyBtnText: { fontWeight: "900", fontSize: 16 },
+  applyBtnText: { color: "#000", fontWeight: "900", fontSize: 16 },
+  emptyText: { color: "#333", fontStyle: "italic", marginTop: 5 },
 });
