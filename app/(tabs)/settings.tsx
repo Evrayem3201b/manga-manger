@@ -84,7 +84,7 @@ export default function Settings() {
 
       setHasLoaded(true);
     } catch (e) {
-      console.error("Load Data Error:", e);
+      Alert.alert("Load Data Error", `${e}`);
     }
   }
 
@@ -97,7 +97,7 @@ export default function Settings() {
           username,
         ]);
       } catch (e) {
-        console.error(e);
+        Alert.alert(`${e}`);
       } finally {
         setIsSaving(false);
       }
@@ -188,7 +188,7 @@ export default function Settings() {
 
       Alert.alert("Success", "Backup exported successfully!");
     } catch (e: any) {
-      console.error("Detailed Export Error:", e);
+      Alert.alert("Detailed Export Error:", e);
       // Fallback detach
       try {
         await db.runAsync(`DETACH DATABASE backup`);
@@ -366,7 +366,7 @@ export default function Settings() {
           <SettingItem
             icon="information-circle-outline"
             label="App Version"
-            subLabel="v1.0.0"
+            subLabel="v1.5.0"
             color="#333"
             showChevron={false}
           />

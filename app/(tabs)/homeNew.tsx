@@ -8,6 +8,7 @@ import { useSQLiteContext } from "expo-sqlite";
 import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Modal,
   Pressable,
   ScrollView,
@@ -64,7 +65,7 @@ export default function Home() {
       }
       return true;
     } catch (e) {
-      console.error("Migration Error:", e);
+      Alert.alert("Migration Error", `${e}`);
       return false;
     }
   }, [db]);
@@ -102,7 +103,7 @@ export default function Home() {
           prev.filter((g) => validGenres.includes(g)),
         );
       } catch (e) {
-        console.error("Genre fetch error:", e);
+        Alert.alert("Genre fetch error", `${e}`);
       }
     },
     [db],
@@ -146,7 +147,7 @@ export default function Home() {
       const fetchedData: MangaDB[] = await db.getAllAsync(sql, params);
       setData(fetchedData);
     } catch (e) {
-      console.error("Fetch Error:", e);
+      Alert.alert("Fetch Error", `${e}`);
     }
   }, [selectedStatus, selectedGenres, localQuery, isMigrating, db]);
 

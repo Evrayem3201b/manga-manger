@@ -1,4 +1,3 @@
-import { useFilterStore } from "@/stores/category-store";
 import { SimpleDisplay } from "@/utils/types";
 import * as FileSystem from "expo-file-system";
 import { router } from "expo-router";
@@ -30,7 +29,7 @@ interface Props {
 
 export default function CardContainer({ mangaSimple, search, style }: Props) {
   const db = useSQLiteContext();
-  const filterKeyword = useFilterStore((state) => state.filter);
+
   const [localManga, setLocalManga] = useState(mangaSimple);
   const [syncingIds, setSyncingIds] = useState<string[]>([]);
   const isSyncingRef = useRef(false);
@@ -58,7 +57,7 @@ export default function CardContainer({ mangaSimple, search, style }: Props) {
           Alert.alert("Library restored", "Covers synced successfully");
         }
       } catch (e) {
-        console.error("Sync Flow Error:", e);
+        Alert.alert("Sync Flow Error", `${e}`);
       }
     }
 
@@ -96,7 +95,7 @@ export default function CardContainer({ mangaSimple, search, style }: Props) {
       );
       return true;
     } catch (e) {
-      console.error(`Download failed for ${item.name}:`, e);
+      // Alert.alert(`Download failed for ${item.name}`, e);
       return false;
     } finally {
       setSyncingIds((prev) => prev.filter((id) => id !== item.id));
@@ -146,7 +145,7 @@ export default function CardContainer({ mangaSimple, search, style }: Props) {
         }
       }
     } catch (err) {
-      console.error("Sync process error:", err);
+      Alert.alert("Sync process error", `${err}`);
     } finally {
       isSyncingRef.current = false;
     }

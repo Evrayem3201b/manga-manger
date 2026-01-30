@@ -73,7 +73,7 @@ export default function Search() {
         [term, Date.now()],
       );
     } catch (e) {
-      console.error("Failed to save search", e);
+      Alert.alert("Failed to save search", `${e}`);
     }
   };
 

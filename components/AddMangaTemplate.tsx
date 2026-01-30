@@ -125,7 +125,7 @@ export default function AddMangaTemplate() {
         { text: "OK", onPress: () => router.back() },
       ]);
     } catch (e) {
-      console.error(e);
+      Alert.alert(e);
       Alert.alert("Database Error", "Check console for logs.");
     } finally {
       setIsLoading(false);

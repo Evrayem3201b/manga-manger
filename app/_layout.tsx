@@ -1,5 +1,4 @@
-import { useColorScheme } from "@/hooks/use-color-scheme";
-import { Stack, useRouter } from "expo-router";
+import { Stack } from "expo-router";
 import React from "react";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -11,9 +10,6 @@ import { SQLiteProvider } from "expo-sqlite";
 
 export default function RootLayout() {
   const queryClient = React.useMemo(() => new QueryClient(), []);
-
-  const colorScheme = useColorScheme();
-  const router = useRouter();
 
   const insets = useSafeAreaInsets();
   /* async function loadUsername() {

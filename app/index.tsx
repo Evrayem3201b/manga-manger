@@ -26,7 +26,7 @@ export default function Signup() {
       await db.runAsync(`INSERT OR REPLACE INTO "user" (username) VALUES (?)`, [
         usernameInput,
       ]);
-      router.push("/(tabs)/home");
+      router.push("/(tabs)/homeNew");
     } catch (e) {
       Alert.alert("Error" + e);
     }
@@ -46,7 +46,7 @@ export default function Signup() {
 
     if (name) {
       setUsernameInput(name);
-      router.push("/(tabs)/home");
+      router.push("/(tabs)/homeNew");
     }
   }
   useEffect(() => {
