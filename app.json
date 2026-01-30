@@ -5,7 +5,7 @@
     "scheme": "manga-manger",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/manga-manger-logo.jpg",
+    "icon": "./assets/images/logo-new.jpg",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
@@ -13,7 +13,7 @@
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundImage": "./assets/images/manga-manger-logo.jpg"
+        "backgroundImage": "./assets/images/logo-new.jpg"
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": true,
@@ -21,7 +21,7 @@
     },
     "web": {
       "output": "static",
-      "favicon": "./assets/images/manga-manger-logo.jpg"
+      "favicon": "./assets/images/logo-new.jpg"
     },
     "plugins": ["expo-asset", "expo-router", "expo-web-browser"],
     "experiments": {
