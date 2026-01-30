@@ -169,8 +169,8 @@ export default function CardContainer({ mangaSimple, search, style }: Props) {
               {...item}
               isAdult={item.isAdult}
               search={search}
-              // isFavorite={favIds.includes(item.id)}
-              // isPlanned={planIds.includes(item.id)}
+              isFavorite={item.isFavorite}
+              isPlanToRead={item.isPlanToRead}
               isDownloading={syncingIds.includes(item.id)}
             />
           </View>

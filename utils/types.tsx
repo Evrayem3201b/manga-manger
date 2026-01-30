@@ -132,7 +132,7 @@ export type SimpleDisplay = {
   year?: number;
   rating?: string;
   readingLink?: string;
-  isFavourite?: boolean;
+  isFavorite?: boolean;
   isPlanToRead?: boolean;
   coverOnlineLink?: string;
 };
@@ -155,6 +155,8 @@ export type MangaDB = {
   genres?: string;
   is_pinned?: number | boolean;
   queue_order?: number;
+  is_planned?: boolean | number;
+  is_favorite?: boolean | number;
 };
 
 export type MangaCategory =

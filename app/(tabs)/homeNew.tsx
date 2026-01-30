@@ -81,47 +81,43 @@ export default function Home() {
   const fetchFilteredManga = useCallback(async () => {
     if (isMigrating) return;
     try {
-      let params: any[] = [`%${localQuery}%`];
-      let sql = `SELECT m.* FROM manga m`;
-      if (selectedStatus === "favorites")
-        sql += ` JOIN favorites f ON m.id = f.manga_id`;
-      else if (selectedStatus === "plan-to-read")
-        sql += ` JOIN plan_to_read p ON m.id = p.manga_id`;
-
-      if (selectedGenres.length > 0)
-        sql += ` JOIN manga_genres mg ON m.id = mg.manga_id`;
-      sql += ` WHERE m.name LIKE ?`;
-      if (
-        selectedStatus !== "all" &&
-        selectedStatus !== "favorites" &&
-        selectedStatus !== "plan-to-read"
-      ) {
-        sql += ` AND m.status = ?`;
-        params.push(selectedStatus);
-      }
-      if (selectedGenres.length > 0) {
-        sql += ` AND mg.genre IN (${selectedGenres.map(() => "?").join(",")})`;
-        params.push(...selectedGenres);
-        sql += ` GROUP BY m.id HAVING COUNT(DISTINCT mg.genre) = ?`;
-        params.push(selectedGenres.length);
-      }
-      sql += ` ORDER BY m.is_pinned DESC`;
-      if (sortBy === "queue") sql += `, m.queue_order ASC, m.updated_at DESC`;
-      else if (sortBy === "priority")
-        sql += `, m.rating DESC, m.updated_at DESC`;
-      else sql += `, m.updated_at DESC`;
+      let params = `%${localQuery}%`;
+      let sql = `SELECT m.*, 
+                            EXISTS(SELECT 1 FROM favorites f WHERE f.manga_id = m.id) AS is_favorite,
+                             EXISTS(SELECT 1 FROM plan_to_read p WHERE p.manga_id = m.id) AS is_planned,
+                            GROUP_CONCAT(g.genre, ',') AS genres  FROM manga m LEFT JOIN manga_genres g ON g.manga_id = m.id WHERE m.name LIKE ? GROUP BY m.id ORDER BY m.updated_at DESC `;
 
       const fetchedData: MangaDB[] = await db.getAllAsync(sql, params);
+
+      if (selectedStatus === "favorites") {
+        const newData = fetchedData.filter((m) => m.is_favorite === 1);
+        setData(newData);
+        return;
+      }
+      if (selectedStatus === "plan-to-read") {
+        const newData = fetchedData.filter((m) => m.is_planned === 1);
+        setData(newData);
+        return;
+      }
+
+      if (selectedGenres.length > 0) {
+        const newData = fetchedData.filter((m) => {
+          const mangaGenres = m.genres?.split(",");
+
+          return mangaGenres?.some((genre) => selectedGenres.includes(genre));
+        });
+        setData(newData);
+        return;
+      }
       setData(fetchedData);
     } catch (e) {
-      console.error("Filter Error:", e);
+      Alert.alert("Filter Error", "Error: " + e);
     }
   }, [selectedStatus, selectedGenres, localQuery, sortBy, isMigrating, db]);
 
   useFocusEffect(
     useCallback(() => {
       fetchFilteredManga();
-      console.log(data[0]);
     }, [fetchFilteredManga]),
   );
 
@@ -177,6 +173,8 @@ export default function Home() {
           isPinned: item.is_pinned === 1,
           inQueue: (item.queue_order ?? 0) > 0,
           coverOnlineLink: item.cover_online_link,
+          isFavorite: !!item.is_favorite,
+          isPlanToRead: !!item.is_planned,
         }))}
       />
 

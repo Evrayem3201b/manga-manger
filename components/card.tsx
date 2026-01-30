@@ -17,13 +17,13 @@ export default function Card({
   search,
   isAdult,
   isFavorite,
-  isPlanned,
+  isPlanToRead,
   isDownloading,
 }: SimpleDisplay & {
   search?: boolean;
   isAdult?: boolean | number;
   isFavorite?: boolean;
-  isPlanned?: boolean;
+  isPlanToRead?: boolean;
   isDownloading?: boolean;
 }) {
   const shouldHideImage = !!isAdult;
@@ -36,7 +36,7 @@ export default function Card({
         {/* --- REFACTORED BADGE CONTAINER --- */}
         {!search && (
           <View style={styles.libraryBadgesContainer}>
-            {isPlanned && (
+            {isPlanToRead && (
               <View
                 style={[
                   styles.miniBadge,
