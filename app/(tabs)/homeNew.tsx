@@ -85,7 +85,7 @@ export default function Home() {
       let sql = `SELECT m.*, 
                             EXISTS(SELECT 1 FROM favorites f WHERE f.manga_id = m.id) AS is_favorite,
                              EXISTS(SELECT 1 FROM plan_to_read p WHERE p.manga_id = m.id) AS is_planned,
-                            GROUP_CONCAT(g.genre, ',') AS genres  FROM manga m LEFT JOIN manga_genres g ON g.manga_id = m.id WHERE m.name LIKE ? GROUP BY m.id ORDER BY m.updated_at DESC `;
+                            GROUP_CONCAT(g.genre, ',') AS genres  FROM manga m LEFT JOIN manga_genres g ON g.manga_id = m.id WHERE m.name LIKE ? GROUP BY m.id ORDER BY m.updated_at DESC`;
 
       const fetchedData: MangaDB[] = await db.getAllAsync(sql, params);
 
