@@ -3,7 +3,7 @@
     "name": "Manga Vault",
     "slug": "manga-vault",
     "scheme": "manga-vault",
-    "version": "1.0.0",
+    "version": "1.5.0",
     "orientation": "portrait",
     "icon": "./assets/images/logo-new.jpg",
     "userInterfaceStyle": "automatic",
@@ -23,7 +23,11 @@
       "output": "static",
       "favicon": "./assets/images/logo-new.jpg"
     },
-    "plugins": ["expo-asset", "expo-router", "expo-web-browser"],
+    "plugins": [
+      "expo-asset",
+      "expo-router",
+      "expo-web-browser"
+    ],
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
@@ -31,7 +35,7 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "ed1b0bb3-127f-46aa-b234-835ddb7d5eb2"
+        "projectId": "1f108233-472b-4dda-895f-32dba93729a1"
       }
     }
   }
