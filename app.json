@@ -2,7 +2,7 @@
   "expo": {
     "name": "Manga Vault",
     "slug": "manga-vault",
-    "scheme": "manga-manger",
+    "scheme": "manga-vault",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/logo-new.jpg",
@@ -17,7 +17,7 @@
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": true,
-      "package": "com.evrayem100.mangamanger"
+      "package": "com.evrayem100.mangavault"
     },
     "web": {
       "output": "static",
