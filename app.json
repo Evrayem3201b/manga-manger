@@ -3,7 +3,7 @@
     "name": "Manga Vault",
     "slug": "manga-vault",
     "scheme": "manga-vault",
-    "version": "1.6.0",
+    "version": "1.6.1",
     "orientation": "portrait",
     "icon": "./assets/images/Logo.jpg",
     "userInterfaceStyle": "automatic",
