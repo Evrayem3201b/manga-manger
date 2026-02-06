@@ -163,27 +163,29 @@ export default function CardContainer({ mangaSimple, search, style }: Props) {
       columnWrapperStyle={numColumns > 1 ? styles.columnWrapper : null}
       keyExtractor={(item) => item.id}
       ListHeaderComponent={
-        <View style={styles.headerWrapper}>
-          <Pressable
-            onPress={() => router.push("/home/add-manga")}
-            style={({ pressed }) => [
-              styles.headerActionContainer,
-              { opacity: pressed ? 0.7 : 1 },
-            ]}
-          >
-            <View style={styles.iconCircle}>
-              <Octicons name="plus" size={18} color={Colors.dark.primary} />
-            </View>
-            <View>
-              <ThemedText style={styles.headerActionTitle}>
-                Add New Manga
-              </ThemedText>
-              <ThemedText style={styles.headerActionSub}>
-                Expand your library collection
-              </ThemedText>
-            </View>
-          </Pressable>
-        </View>
+        !search ? (
+          <View style={styles.headerWrapper}>
+            <Pressable
+              onPress={() => router.push("/home/add-manga")}
+              style={({ pressed }) => [
+                styles.headerActionContainer,
+                { opacity: pressed ? 0.7 : 1 },
+              ]}
+            >
+              <View style={styles.iconCircle}>
+                <Octicons name="plus" size={18} color={Colors.dark.primary} />
+              </View>
+              <View>
+                <ThemedText style={styles.headerActionTitle}>
+                  Add New Manga
+                </ThemedText>
+                <ThemedText style={styles.headerActionSub}>
+                  Expand your library collection
+                </ThemedText>
+              </View>
+            </Pressable>
+          </View>
+        ) : null
       }
       renderItem={({ item }) => (
         <Pressable
