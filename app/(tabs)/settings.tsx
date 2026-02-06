@@ -366,7 +366,7 @@ export default function Settings() {
           <SettingItem
             icon="information-circle-outline"
             label="App Version"
-            subLabel="v1.5.0"
+            subLabel="v1.6.1"
             color="#333"
             showChevron={false}
           />
