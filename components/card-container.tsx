@@ -1,4 +1,6 @@
+import { Colors } from "@/constants/theme";
 import { SimpleDisplay } from "@/utils/types";
+import { Octicons } from "@expo/vector-icons";
 import * as FileSystem from "expo-file-system";
 import { router } from "expo-router";
 import { useSQLiteContext } from "expo-sqlite";
@@ -13,6 +15,7 @@ import {
   ViewStyle,
 } from "react-native";
 import Card from "./card";
+import { ThemedText } from "./themed-text";
 
 const { width } = Dimensions.get("window");
 const cardWidth = 175;
@@ -159,6 +162,29 @@ export default function CardContainer({ mangaSimple, search, style }: Props) {
       contentContainerStyle={[styles.listContent, style]}
       columnWrapperStyle={numColumns > 1 ? styles.columnWrapper : null}
       keyExtractor={(item) => item.id}
+      ListHeaderComponent={
+        <View style={styles.headerWrapper}>
+          <Pressable
+            onPress={() => router.push("/home/add-manga")}
+            style={({ pressed }) => [
+              styles.headerActionContainer,
+              { opacity: pressed ? 0.7 : 1 },
+            ]}
+          >
+            <View style={styles.iconCircle}>
+              <Octicons name="plus" size={18} color={Colors.dark.primary} />
+            </View>
+            <View>
+              <ThemedText style={styles.headerActionTitle}>
+                Add New Manga
+              </ThemedText>
+              <ThemedText style={styles.headerActionSub}>
+                Expand your library collection
+              </ThemedText>
+            </View>
+          </Pressable>
+        </View>
+      }
       renderItem={({ item }) => (
         <Pressable
           onPress={() =>
@@ -185,4 +211,41 @@ const styles = StyleSheet.create({
   listContent: { paddingBottom: 100, alignItems: "center" },
   columnWrapper: { justifyContent: "center", gap: 15 },
   cardWrapper: { paddingVertical: 10, alignItems: "center" },
+  headerWrapper: {
+    width: width,
+    alignItems: "center",
+    paddingVertical: 15,
+  },
+  headerActionContainer: {
+    width: width - 40,
+    backgroundColor: "#111",
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "#222",
+    borderStyle: "dashed",
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 16,
+    gap: 15,
+  },
+  iconCircle: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "rgba(255,255,255,0.03)",
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.05)",
+  },
+  headerActionTitle: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#fff",
+  },
+  headerActionSub: {
+    fontSize: 12,
+    color: "#555",
+    marginTop: 1,
+  },
 });
