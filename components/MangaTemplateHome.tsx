@@ -378,6 +378,7 @@ export default function MangaTemplate({ id }: { id: string }) {
           fontFamily: "ni",
           color: Colors.dark.text,
         }}
+        selectable
       >
         {data?.name}
       </Text>

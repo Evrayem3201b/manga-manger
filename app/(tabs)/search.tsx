@@ -8,7 +8,6 @@ import { useSQLiteContext } from "expo-sqlite";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   Modal,
   Pressable,
   ScrollView,
@@ -18,24 +17,31 @@ import {
   View,
 } from "react-native";
 
-const RECENT_SEARCHES_KEY = "@recent_searches_db";
-
 export default function Search() {
   const [query, setQuery] = useState("");
   const [debounced, setDebounced] = useState("");
   const [showFilters, setShowFilters] = useState(false);
   const [isFocused, setIsFocused] = useState(false);
-  const [recentSearches, setRecentSearches] = useState<string[]>([]);
+  const [page, setPage] = useState(0); // Pagination state
+  const [recentSearches, setRecentSearches] = useState<
+    { query: string; result_ids: string }[]
+  >([]);
 
-  // Local Filter States
+  // Filter States
   const [selectedStatus, setSelectedStatus] = useState<string | null>(null);
   const [selectedGenres, setSelectedGenres] = useState<string[]>([]);
 
-  // 1. Fetch data based ONLY on the text query
-  const { results, isFetching } = useSearchManga(debounced, 20, 0);
+  const LIMIT = 20;
+  const { results, isFetching, total } = useSearchManga(
+    debounced,
+    LIMIT,
+    page * LIMIT,
+  );
   const db = useSQLiteContext();
 
-  // Persistence Logic
+  // Calculate total pages
+  const totalPages = useMemo(() => Math.ceil((total || 0) / LIMIT), [total]);
+
   useFocusEffect(
     useCallback(() => {
       loadRecentSearches();
@@ -45,8 +51,10 @@ export default function Search() {
   useEffect(() => {
     const t = setTimeout(() => {
       setDebounced(query);
-      if (query.trim().length > 2) {
-        saveSearch(query.trim());
+      setPage(0); // Reset pagination to 0 on every new query
+      const trimmed = query.trim();
+      if (trimmed.length > 2) {
+        saveSearch(trimmed);
       }
     }, 600);
 
@@ -55,49 +63,55 @@ export default function Search() {
 
   const loadRecentSearches = async () => {
     try {
-      const searchCache: { query: string }[] = await db.getAllAsync(
-        `SELECT query FROM search_cache ORDER BY created_at DESC`,
-      );
-
-      if (searchCache) setRecentSearches(searchCache.map((s) => s.query));
+      const searchCache: { query: string; result_ids: string }[] =
+        await db.getAllAsync(
+          `SELECT query, result_ids FROM search_cache ORDER BY created_at DESC`,
+        );
+      if (searchCache) setRecentSearches(searchCache);
     } catch (e) {
-      Alert.alert("Failed to load searches");
+      console.error("Failed to load searches", e);
     }
   };
 
   const saveSearch = async (term: string) => {
     try {
-      setRecentSearches([term, ...recentSearches]);
+      const uniqueId = Date.now().toString();
       await db.runAsync(
-        `INSERT INTO search_cache (query, created_at) VALUES (?, ?)`,
-        [term, Date.now()],
+        `INSERT OR REPLACE INTO search_cache (query, result_ids, created_at) VALUES (?, ?, ?)`,
+        [term, uniqueId, Date.now()],
       );
+      loadRecentSearches();
     } catch (e) {
-      Alert.alert("Failed to save search", `${e}`);
+      console.error("Failed to save search", e);
     }
   };
 
-  const removeSearch = async (term: string) => {
-    const updated = recentSearches.filter((s) => s !== term);
-    setRecentSearches(updated);
-    await db.runAsync(`DELETE FROM search_cache WHERE query = ?`, term);
+  const removeSearch = async (id: string) => {
+    try {
+      await db.runAsync(`DELETE FROM search_cache WHERE result_ids = ?`, [id]);
+      setRecentSearches((prev) => prev.filter((s) => s.result_ids !== id));
+    } catch (e) {
+      console.error("Delete failed", e);
+    }
   };
 
   const clearAllRecent = async () => {
-    setRecentSearches([]);
-    await db.runAsync(`DELETE FROM search_cache`);
+    try {
+      setRecentSearches([]);
+      await db.runAsync(`DELETE FROM search_cache`);
+    } catch (e) {
+      console.error("Clear failed", e);
+    }
   };
 
-  // 2. Extract dynamic genres from results
   const availableGenres = useMemo(() => {
     const genres = new Set<string>();
     results.forEach((manga) => {
-      manga.genres.forEach((g) => genres.add(g));
+      manga.genres?.forEach((g) => genres.add(g));
     });
     return Array.from(genres).sort();
   }, [results]);
 
-  // 3. Client-side Filter Logic
   const filteredResults = useMemo(() => {
     return results.filter((manga) => {
       const matchStatus = !selectedStatus || manga.status === selectedStatus;
@@ -127,7 +141,7 @@ export default function Search() {
             style={[styles.searchBox, isFocused && styles.searchBoxFocused]}
           >
             <Ionicons
-              name="globe-outline"
+              name="search-outline"
               size={18}
               color={isFocused ? Colors.dark.primary : "#555"}
             />
@@ -170,7 +184,6 @@ export default function Search() {
           </Pressable>
         </View>
 
-        {/* --- RECENT SEARCHES CONTENT (Appears when query is empty) --- */}
         {query === "" ? (
           <ScrollView
             style={styles.recentContainer}
@@ -185,40 +198,74 @@ export default function Search() {
               )}
             </View>
 
-            {recentSearches.length > 0 ? (
-              recentSearches.map((item, idx) => (
+            {recentSearches.map((item, idx) => (
+              <Pressable
+                key={idx}
+                style={styles.recentItem}
+                onPress={() => setQuery(item.query)}
+              >
+                <View style={styles.recentLeft}>
+                  <MaterialCommunityIcons
+                    name="history"
+                    size={20}
+                    color="#444"
+                  />
+                  <Text style={styles.recentText} numberOfLines={1}>
+                    {item.query}
+                  </Text>
+                </View>
                 <Pressable
-                  key={idx}
-                  style={styles.recentItem}
-                  onPress={() => setQuery(item)}
+                  hitSlop={15}
+                  onPress={() => removeSearch(item.result_ids)}
                 >
-                  <View style={styles.recentLeft}>
-                    <MaterialCommunityIcons
-                      name="history"
-                      size={20}
-                      color="#444"
-                    />
-                    <Text style={styles.recentText}>{item}</Text>
-                  </View>
-                  <Pressable hitSlop={10} onPress={() => removeSearch(item)}>
-                    <Ionicons name="close" size={18} color="#444" />
-                  </Pressable>
+                  <Ionicons name="close" size={18} color="#444" />
                 </Pressable>
-              ))
-            ) : (
-              <View style={styles.emptyRecent}>
-                <Ionicons name="search-outline" size={50} color="#1a1a1e" />
-                <Text style={styles.emptyRecentText}>
-                  Try searching for a title or author
-                </Text>
-              </View>
-            )}
+              </Pressable>
+            ))}
           </ScrollView>
         ) : (
-          <CardContainer search mangaSimple={filteredResults} />
+          <>
+            {total > LIMIT && filteredResults.length !== 0 && (
+              <View style={styles.paginationRow}>
+                <Pressable
+                  style={[styles.pageBtn, page === 0 && styles.btnDisabled]}
+                  disabled={page === 0 || isFetching}
+                  onPress={() => setPage((p) => Math.max(0, p - 1))}
+                >
+                  <Ionicons
+                    name="chevron-back"
+                    size={20}
+                    color={page === 0 ? "#333" : "#fff"}
+                  />
+                </Pressable>
+
+                <View style={styles.pageIndicator}>
+                  <Text style={styles.pageText}>
+                    {page + 1}{" "}
+                    <Text style={styles.pageTotalText}>/ {totalPages}</Text>
+                  </Text>
+                </View>
+
+                <Pressable
+                  style={[
+                    styles.pageBtn,
+                    page + 1 >= totalPages && styles.btnDisabled,
+                  ]}
+                  disabled={page + 1 >= totalPages || isFetching}
+                  onPress={() => setPage((p) => p + 1)}
+                >
+                  <Ionicons
+                    name="chevron-forward"
+                    size={20}
+                    color={page + 1 >= totalPages ? "#333" : "#fff"}
+                  />
+                </Pressable>
+              </View>
+            )}
+            <CardContainer search mangaSimple={filteredResults} />
+          </>
         )}
 
-        {/* --- MODAL (Kept exactly as requested) --- */}
         <Modal visible={showFilters} animationType="slide" transparent>
           <View style={styles.modalOverlay}>
             <View style={styles.modalContent}>
@@ -243,7 +290,7 @@ export default function Search() {
                     </Pressable>
                   )}
                 </View>
-                <View style={styles.chipRow}>
+                <div style={styles.chipRow}>
                   {["ongoing", "completed", "hiatus", "cancelled"].map((s) => (
                     <Pressable
                       key={s}
@@ -265,7 +312,7 @@ export default function Search() {
                       </Text>
                     </Pressable>
                   ))}
-                </View>
+                </div>
 
                 {availableGenres.length > 0 && (
                   <>
@@ -277,7 +324,7 @@ export default function Search() {
                         </Pressable>
                       )}
                     </View>
-                    <View style={styles.chipRow}>
+                    <div style={styles.chipRow}>
                       {availableGenres.map((g) => (
                         <Pressable
                           key={g}
@@ -298,7 +345,7 @@ export default function Search() {
                           </Text>
                         </Pressable>
                       ))}
-                    </View>
+                    </div>
                   </>
                 )}
               </ScrollView>
@@ -363,14 +410,12 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: Colors.dark.primary,
   },
-  // Recent Searches Styling
   recentContainer: { flex: 1, marginBottom: 90 },
   recentHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
     marginTop: 10,
-
     paddingHorizontal: 5,
   },
   recentTitle: { color: "#fff", fontSize: 18, fontWeight: "700" },
@@ -384,25 +429,7 @@ const styles = StyleSheet.create({
     borderBottomColor: "#111",
   },
   recentLeft: { flexDirection: "row", alignItems: "center", gap: 12 },
-  recentText: {
-    color: "#888",
-    fontSize: 16,
-    fontWeight: "500",
-    width: "70%",
-  },
-  emptyRecent: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    marginTop: 100,
-  },
-  emptyRecentText: {
-    color: "#333",
-    marginTop: 15,
-    fontSize: 14,
-    fontWeight: "600",
-  },
-
+  recentText: { color: "#888", fontSize: 16, fontWeight: "500", width: "70%" },
   modalOverlay: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.8)",
@@ -474,4 +501,34 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   applyBtnText: { fontWeight: "900", fontSize: 16, color: "#000" },
+
+  paginationRow: {
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 15,
+    marginTop: 0,
+    paddingBottom: 15,
+  },
+  pageBtn: {
+    width: 48,
+    height: 48,
+    backgroundColor: "#111",
+    borderRadius: 14,
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#222",
+  },
+  btnDisabled: { opacity: 0.5, borderColor: "transparent" },
+  pageIndicator: {
+    backgroundColor: "#111",
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#222",
+  },
+  pageText: { color: "#fff", fontWeight: "800", fontSize: 16 },
+  pageTotalText: { color: "#555", fontSize: 14, fontWeight: "400" },
 });

@@ -3,9 +3,9 @@
     "name": "Manga Vault",
     "slug": "manga-vault",
     "scheme": "manga-vault",
-    "version": "1.5.0",
+    "version": "1.6.0",
     "orientation": "portrait",
-    "icon": "./assets/images/logo-new.jpg",
+    "icon": "./assets/images/Logo.jpg",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
@@ -13,7 +13,7 @@
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundImage": "./assets/images/logo-new.jpg"
+        "backgroundImage": "./assets/images/Logo.jpg"
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": true,
@@ -21,13 +21,9 @@
     },
     "web": {
       "output": "static",
-      "favicon": "./assets/images/logo-new.jpg"
+      "favicon": "./assets/images/Logo.jpg"
     },
-    "plugins": [
-      "expo-asset",
-      "expo-router",
-      "expo-web-browser"
-    ],
+    "plugins": ["expo-asset", "expo-router", "expo-web-browser"],
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true

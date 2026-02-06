@@ -17,7 +17,7 @@ function buildCoverUrl(manga: Manga): { uri: string } {
 
 export function useSearchManga(
   query: string,
-  limit = 40, // Increased limit for better local filtering
+  limit = 20, // Increased limit for better local filtering
   offset = 0,
 ) {
   const { data, isLoading, isFetching } = useSearchData(query, limit, offset);

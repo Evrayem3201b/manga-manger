@@ -114,8 +114,8 @@ CREATE TABLE IF NOT EXISTS reading_progress (
 );
 
 CREATE TABLE IF NOT EXISTS search_cache (
-  query TEXT PRIMARY KEY,
-  result_ids TEXT,
+  query TEXT,
+  result_ids TEXT PRIMARY KEY,
   created_at INTEGER
 );
 

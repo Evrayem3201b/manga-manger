@@ -1,7 +1,7 @@
 import { Colors } from "@/constants/theme";
 import { useMangaDetails } from "@/hooks/fetching/mangaDetails/useMangaDetails";
 import { getStatusFromName } from "@/utils/getStatus";
-import { Ionicons } from "@expo/vector-icons";
+import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import * as FileSystem from "expo-file-system";
 import { LinearGradient } from "expo-linear-gradient";
 import { useSQLiteContext } from "expo-sqlite";
@@ -43,13 +43,6 @@ export default function MangaTemplate({ id }: { id: string }) {
     return <ActivityIndicator size="large" color={Colors.dark.text} />;
   }
 
-  // useEffect(() => {
-  //   async function loadData() {
-  //     await db.runAsync(`DROP TABLE manga`);
-  //   }
-  //   loadData();
-  // }, []);
-
   const visibleGenres = expanded
     ? genres
     : genres?.slice(0, INITIAL_VISIBLE_TAGS);
@@ -59,11 +52,20 @@ export default function MangaTemplate({ id }: { id: string }) {
       ? genres.length - INITIAL_VISIBLE_TAGS
       : 0;
 
+  async function openMangaSite() {
+    const url = `https://mangadex.org/title/${id}/${data?.name}`;
+    const supported = await Linking.canOpenURL(url);
+    if (supported) {
+      await Linking.openURL(url);
+    } else {
+      Alert.alert("Error", "Don't know how to open this URL");
+    }
+  }
+
   async function addToLibrary() {
     if (!data) return;
 
     try {
-      // 1. Download image first so we have the path
       const localUri = await handleImageDownload();
 
       if (!localUri) {
@@ -79,8 +81,8 @@ export default function MangaTemplate({ id }: { id: string }) {
             data.id,
             data.name,
             data.description,
-            localUri, // Use the URI we just got
-            data.coverUrl?.uri || null, // Store the online link
+            localUri,
+            data.coverUrl?.uri || null,
             data.status,
             data.year,
             data.rating ? parseFloat(data.rating) : null,
@@ -92,7 +94,6 @@ export default function MangaTemplate({ id }: { id: string }) {
           ],
         );
 
-        // Insert genres
         if (genres) {
           for (const genre of genres) {
             await db.runAsync(
@@ -118,15 +119,12 @@ export default function MangaTemplate({ id }: { id: string }) {
         "covers",
       );
 
-      // 1. Ensure directory exists
       if (!coversDir.exists) {
         await coversDir.create();
       }
 
       const destinationFile = new FileSystem.File(coversDir, `${data.id}.jpg`);
 
-      // 2. Perform download with the idempotent flag
-      // Setting idempotent: true tells Expo to overwrite if the file exists
       const output = await FileSystem.File.downloadFileAsync(
         data.coverUrl.uri,
         destinationFile,
@@ -159,7 +157,7 @@ export default function MangaTemplate({ id }: { id: string }) {
           ) : (
             <View style={[styles.mangaImage, styles.placeholderContainer]}>
               <LinearGradient
-                colors={["#1e1e24", "#44318d"]} // A slightly more "magic/fantasy" purple for discovery
+                colors={["#1e1e24", "#44318d"]}
                 style={StyleSheet.absoluteFill}
               />
               <View style={styles.placeholderContent}>
@@ -192,69 +190,22 @@ export default function MangaTemplate({ id }: { id: string }) {
           fontFamily: "ni",
           color: Colors.dark.text,
         }}
+        selectable
       >
         {data?.name}
       </Text>
 
-      <View
-        style={{
-          flexWrap: "wrap",
-          flexDirection: "row",
-          gap: 6,
-          marginTop: 20,
-          width: "80%",
-          justifyContent: "center",
-        }}
-      >
+      <View style={styles.genreContainer}>
         {visibleGenres?.map((tag: any) => {
           const genre = tag.attributes.name.en;
           return <Tag title={genre} key={tag.id} />;
         })}
 
-        {/* 🔥 SHOW MORE / LESS BUTTON */}
-        {!expanded && hiddenCount > 0 && (
-          <Pressable onPress={() => setExpanded(true)}>
-            <View
-              style={{
-                paddingHorizontal: 12,
-                paddingVertical: 6,
-                borderRadius: 999,
-                borderWidth: 1,
-                borderColor: "rgba(255,255,255,0.25)",
-              }}
-            >
-              <Text
-                style={{
-                  color: Colors.dark.text,
-                  fontSize: 13,
-                  opacity: 0.85,
-                }}
-              >
-                +{hiddenCount} more
-              </Text>
-            </View>
-          </Pressable>
-        )}
-
-        {expanded && (
-          <Pressable onPress={() => setExpanded(false)}>
-            <View
-              style={{
-                paddingHorizontal: 12,
-                paddingVertical: 6,
-                borderRadius: 999,
-                borderWidth: 1,
-                borderColor: "rgba(255,255,255,0.25)",
-              }}
-            >
-              <Text
-                style={{
-                  color: Colors.dark.text,
-                  fontSize: 13,
-                  opacity: 0.85,
-                }}
-              >
-                Show less
+        {hiddenCount > 0 && (
+          <Pressable onPress={() => setExpanded(!expanded)}>
+            <View style={styles.moreTag}>
+              <Text style={styles.moreTagText}>
+                {expanded ? "Show less" : `+${hiddenCount} more`}
               </Text>
             </View>
           </Pressable>
@@ -271,14 +222,9 @@ export default function MangaTemplate({ id }: { id: string }) {
           <Markdown
             style={styles.markdown}
             onLinkPress={(url) => {
-              // We handle the promise internally using .catch
-              Linking.openURL(url).catch((err) =>
+              Linking.openURL(url).catch(() =>
                 Alert.alert("Error", "Could not open link"),
               );
-
-              // Return true to indicate the link was handled,
-              // or false to let the default handler run.
-              // Most users prefer returning false here.
               return false;
             }}
           >
@@ -295,14 +241,8 @@ export default function MangaTemplate({ id }: { id: string }) {
           </ThemedText>
         </Pressable>
       </View>
-      <View
-        style={{
-          marginTop: 40,
-          marginBottom: 20,
-          width: "90%",
-          alignItems: "center",
-        }}
-      >
+
+      <View style={styles.stepperSection}>
         <ThemedText style={styles.sectionTitle}>Current Progress</ThemedText>
 
         <View style={styles.largeStepperRow}>
@@ -334,49 +274,88 @@ export default function MangaTemplate({ id }: { id: string }) {
           </Pressable>
         </View>
       </View>
-      <Button
-        style={{
-          width: "100%",
-          justifyContent: "center",
-          alignItems: "center",
-          flexDirection: "row",
-          marginBlock: 10,
-          borderRadius: 20,
-          backgroundColor: Colors.dark.primary,
-        }}
-        textStyle={{
-          textAlign: "center",
-          alignItems: "center",
-          justifyContent: "center",
-          flexGrow: 1,
-        }}
-        onPress={() => addToLibrary()}
-      >
-        {"Add to Library"}
-      </Button>
+
+      <View style={styles.actionContainer}>
+        {/* Elegant Read from Site Button */}
+        <Pressable onPress={openMangaSite} style={styles.outlineBtn}>
+          <MaterialCommunityIcons
+            name="web"
+            size={20}
+            color={Colors.dark.primary}
+            style={{ marginRight: 8 }}
+          />
+          <Text style={styles.outlineBtnText}>Read from Site</Text>
+        </Pressable>
+
+        <Button
+          style={styles.primaryBtn}
+          textStyle={{ flexGrow: 1, textAlign: "center" }}
+          onPress={() => addToLibrary()}
+        >
+          {"Add to Library"}
+        </Button>
+      </View>
     </ScreenHug>
   );
 }
 
 const styles = StyleSheet.create({
-  searchBox: {
+  genreContainer: {
+    flexWrap: "wrap",
     flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    paddingHorizontal: 14,
-    height: 46,
-    borderRadius: 16,
-
-    backgroundColor: "#1a1a1e", // elevated dark surface
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.06)",
-
-    marginBottom: 24,
+    gap: 6,
+    marginTop: 20,
+    width: "80%",
+    justifyContent: "center",
   },
-  input: {
-    flex: 1,
+  moreTag: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.25)",
+  },
+  moreTagText: {
+    color: Colors.dark.text,
+    fontSize: 13,
+    opacity: 0.85,
+  },
+  stepperSection: {
+    marginTop: 40,
+    marginBottom: 20,
+    width: "90%",
+    alignItems: "center",
+  },
+  actionContainer: {
+    width: "100%",
+    gap: 12,
+    marginTop: 10,
+    paddingBottom: 40,
+  },
+  outlineBtn: {
+    width: "100%",
+    height: 54,
+    borderRadius: 20,
+    borderWidth: 1.5,
+    borderColor: Colors.dark.primary,
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "transparent",
+  },
+  outlineBtnText: {
+    color: Colors.dark.primary,
     fontSize: 16,
-    color: "#f5f5f7", // primary text
+    fontWeight: "800",
+  },
+  primaryBtn: {
+    width: "100%",
+    height: 54,
+    justifyContent: "center",
+    alignItems: "center",
+    flexDirection: "row",
+    borderRadius: 20,
+    backgroundColor: Colors.dark.primary,
   },
   sectionTitle: {
     fontSize: 13,
@@ -409,7 +388,7 @@ const styles = StyleSheet.create({
   },
   hugeNumberInput: {
     fontSize: 48,
-    fontFamily: "ni", // Your custom heading font
+    fontFamily: "ni",
     color: "#fff",
     textAlign: "center",
     padding: 0,
@@ -467,61 +446,18 @@ const styles = StyleSheet.create({
     borderRightColor: "rgba(0,0,0,0.2)",
   },
   markdown: {
-    // Standard text
     body: {
       color: Colors.dark.mutedForeground,
       fontSize: 14,
       lineHeight: 22,
-      fontFamily: "poppins", // Matches your card font
     },
-    // Headers (# Header)
-    heading1: {
-      color: "#ffffff",
-      fontSize: 24,
-      fontWeight: "800",
-      marginVertical: 10,
-    },
-    heading2: {
-      color: "#ffffff",
-      fontSize: 20,
-      fontWeight: "700",
-      marginVertical: 8,
-    },
-    // Bold (**text**)
     strong: {
       color: "#ffffff",
       fontWeight: "bold",
     },
-    // Italics (*text*)
-    em: {
-      fontStyle: "italic",
-    },
-    // Links ([text](url))
     link: {
       color: Colors.dark.primary,
       textDecorationLine: "underline",
-    },
-    // List items
-    bullet_list: {
-      marginVertical: 10,
-    },
-    list_item: {
-      flexDirection: "row",
-      justifyContent: "flex-start",
-    },
-    // Horizontal rule (---)
-    hr: {
-      backgroundColor: "rgba(255,255,255,0.1)",
-      height: 1,
-      marginVertical: 15,
-    },
-
-    // Code blocks (backticks)
-    code_inline: {
-      backgroundColor: "#2c2c2e",
-      color: Colors.dark.primary,
-      padding: 4,
-      borderRadius: 4,
     },
   } as any,
 });
