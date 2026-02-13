@@ -368,6 +368,9 @@ const styles = StyleSheet.create({
     textAlign: "center",
     fontFamily: "ni",
     color: "#fff",
+    lineHeight: 38, // Slightly larger than font size to prevent vertical clipping
+    paddingVertical: 4, // Extra buffer for font "overflow"
+    paddingHorizontal: 10, // Prevents side clipping on italic/wide fonts
   },
   genreContainer: {
     flexWrap: "wrap",

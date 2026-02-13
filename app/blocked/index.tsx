@@ -2,7 +2,7 @@ import Card from "@/components/card";
 import ScreenHug from "@/components/ScreenHug";
 import { Colors } from "@/constants/theme";
 import { useAlert } from "@/context/AlertContext";
-import { Ionicons } from "@expo/vector-icons";
+import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useSQLiteContext } from "expo-sqlite";
 import React, { useCallback, useState } from "react";
@@ -25,7 +25,7 @@ interface BlockedManga {
 export default function BlockedMangaPage() {
   const db = useSQLiteContext();
   const router = useRouter();
-  const { showAlert } = useAlert(); // Initialize
+  const { showAlert } = useAlert();
 
   const [data, setData] = useState<BlockedManga[]>([]);
   const [localQuery, setLocalQuery] = useState("");
@@ -40,7 +40,7 @@ export default function BlockedMangaPage() {
         sql += ` WHERE name LIKE ?`;
         params.push(`%${localQuery}%`);
       }
-      sql += ` ORDER BY blocked_at DESC`;
+      sql += ` ORDER BY name ASC`; // Changed to Alpha for easier finding in lists
 
       const results: BlockedManga[] = await db.getAllAsync(sql, params);
       setData(results);
@@ -60,9 +60,9 @@ export default function BlockedMangaPage() {
   const handleUnblock = (id: string, name: string) => {
     showAlert({
       title: "Unblock Manga",
-      message: `Restore "${name}" to search results?`,
+      message: `Do you want to restore "${name}"? It will reappear in search results immediately.`,
       type: "info",
-      confirmText: "Unblock",
+      confirmText: "Restore",
       onConfirm: async () => {
         await db.runAsync("DELETE FROM blocked_manga WHERE manga_id = ?", [id]);
         fetchBlocked();
@@ -71,10 +71,7 @@ export default function BlockedMangaPage() {
   };
 
   const renderItem = ({ item }: { item: BlockedManga }) => (
-    <Pressable
-      onPress={() => handleUnblock(item.manga_id, item.name)}
-      style={styles.cardWrapper}
-    >
+    <View style={styles.itemContainer}>
       <Card
         id={item.manga_id}
         name={item.name}
@@ -83,38 +80,50 @@ export default function BlockedMangaPage() {
         status="blocked"
         coverUrl={{ uri: item.manga_image }}
         currentChap={0}
-        search={true} // Uses the simpler "Total Ch." label style
+        search={true}
       />
-      {/* Visual indicator that this is a blocked item */}
-      <View style={styles.blockOverlay}>
-        <Ionicons name="ban" size={20} color="rgba(255,255,255,0.6)" />
-      </View>
-    </Pressable>
+      <Pressable
+        style={styles.unblockActionBtn}
+        onPress={() => handleUnblock(item.manga_id, item.name)}
+      >
+        <MaterialCommunityIcons
+          name="eye-check"
+          size={18}
+          color={Colors.dark.primary}
+        />
+        <Text style={styles.unblockText}>Restore</Text>
+      </Pressable>
+    </View>
   );
 
   return (
     <ScreenHug
       scroll={false}
       title="Blacklist"
-      style={{
-        marginTop: -50,
-      }}
-      count={data?.length}
+      // Removed the large negative margin to prevent overlap with the Layout header
+      style={{ marginTop: -40 }}
     >
+      <View style={styles.headerInfo}>
+        <Ionicons name="shield-checkmark" size={14} color="#555" />
+        <Text style={styles.headerInfoText}>Hidden from search results</Text>
+      </View>
+
       <View style={styles.searchRow}>
         <View style={styles.searchContainer}>
           <Ionicons name="search" size={18} color="#444" />
           <TextInput
             style={styles.searchBar}
-            placeholder="Search blacklist..."
+            placeholder="Search restricted titles..."
             placeholderTextColor="#444"
             value={localQuery}
             onChangeText={setLocalQuery}
           />
+          {localQuery !== "" && (
+            <Pressable onPress={() => setLocalQuery("")}>
+              <Ionicons name="close-circle" size={18} color="#444" />
+            </Pressable>
+          )}
         </View>
-        <Pressable style={styles.backBtn} onPress={() => router.back()}>
-          <Ionicons name="close" size={24} color="#fff" />
-        </Pressable>
       </View>
 
       {isLoading ? (
@@ -132,12 +141,13 @@ export default function BlockedMangaPage() {
           contentContainerStyle={styles.listContent}
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
-              <Ionicons
-                name="shield-checkmark-outline"
-                size={60}
-                color="#1a1a1e"
-              />
-              <Text style={styles.emptyText}>No blocked content found</Text>
+              <View style={styles.emptyIconCircle}>
+                <Ionicons name="shield-checkmark" size={40} color="#222" />
+              </View>
+              <Text style={styles.emptyTitle}>Everything is clear</Text>
+              <Text style={styles.emptySub}>
+                Titles you block will appear here.
+              </Text>
             </View>
           }
         />
@@ -147,47 +157,105 @@ export default function BlockedMangaPage() {
 }
 
 const styles = StyleSheet.create({
-  searchRow: { flexDirection: "row", gap: 10, marginBottom: 20, marginTop: 10 },
+  headerInfo: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginBottom: 15,
+    marginTop: 0,
+  },
+  headerInfoText: {
+    color: "#555",
+    fontSize: 12,
+    fontWeight: "600",
+    letterSpacing: 0.5,
+  },
+  searchRow: {
+    flexDirection: "row",
+    marginBottom: 20,
+  },
   searchContainer: {
     flex: 1,
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#0d0d0d",
-    borderRadius: 16,
+    backgroundColor: "#111", // Matching your search box style
+    borderRadius: 14,
     paddingHorizontal: 15,
-    height: 52,
+    height: 48,
     borderWidth: 1,
-    borderColor: "#1a1a1e",
+    borderColor: "#222",
   },
-  searchBar: { flex: 1, color: "#fff", marginLeft: 10, fontSize: 16 },
-  backBtn: {
-    width: 52,
-    height: 52,
-    backgroundColor: "#0d0d0d",
-    borderRadius: 16,
+  searchBar: {
+    flex: 1,
+    color: "#fff",
+    marginLeft: 10,
+    fontSize: 15,
+  },
+  columnWrapper: {
+    justifyContent: "space-between",
+    gap: 15,
+    marginBottom: 10,
+  },
+  itemContainer: {
+    flex: 1,
+    alignItems: "center",
+    backgroundColor: "rgba(255,255,255,0.02)",
+    borderRadius: 20,
+    paddingTop: 10,
+    paddingBottom: 15,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.03)",
+  },
+  unblockActionBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "rgba(0,0,0,0.4)",
+    paddingVertical: 8,
+    paddingHorizontal: 15,
+    borderRadius: 12,
+    marginTop: 10,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.05)",
+  },
+  unblockText: {
+    color: Colors.dark.primary,
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  listContent: {
+    paddingBottom: 150,
+  },
+  centered: {
+    flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    borderWidth: 1,
-    borderColor: "#1a1a1e",
   },
-  columnWrapper: { justifyContent: "space-between", paddingHorizontal: 5 },
-  cardWrapper: { position: "relative" },
-  listContent: { paddingBottom: 100 },
-  blockOverlay: {
-    position: "absolute",
-    top: 10,
-    left: 10,
-    backgroundColor: "rgba(0,0,0,0.6)",
-    padding: 4,
-    borderRadius: 8,
-    zIndex: 40,
-  },
-  centered: { flex: 1, justifyContent: "center", alignItems: "center" },
   emptyContainer: {
     flex: 1,
     alignItems: "center",
-    marginTop: 100,
-    opacity: 0.3,
+    marginTop: 80,
   },
-  emptyText: { color: "#fff", marginTop: 15, fontWeight: "700", fontSize: 16 },
+  emptyIconCircle: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: "#0a0a0a",
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#111",
+    marginBottom: 20,
+  },
+  emptyTitle: {
+    color: "#fff",
+    fontWeight: "800",
+    fontSize: 18,
+  },
+  emptySub: {
+    color: "#444",
+    fontSize: 14,
+    marginTop: 6,
+    textAlign: "center",
+  },
 });

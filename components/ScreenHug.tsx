@@ -51,9 +51,11 @@ export default function ScreenHug({
 function Header({ title, count }: { title: string; count?: number }) {
   return (
     <>
-      <ThemedText type="title" lightColor={Colors.dark.text}>
-        {title}
-      </ThemedText>
+      {title && (
+        <ThemedText type="title" lightColor={Colors.dark.text}>
+          {title}
+        </ThemedText>
+      )}
       {count !== undefined && (
         <ThemedText
           type="defaultSemiBold"

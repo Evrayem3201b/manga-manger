@@ -254,7 +254,8 @@ export default function Search() {
           </ScrollView>
         ) : (
           <>
-            {total > LIMIT && filteredResults.length !== 0 && (
+            {/* Only hide if there's no query, or if the total items found is less than a page */}
+            {query !== "" && total > LIMIT && (
               <View style={styles.paginationRow}>
                 <Pressable
                   style={[styles.pageBtn, page === 0 && styles.btnDisabled]}
@@ -291,13 +292,27 @@ export default function Search() {
                 </Pressable>
               </View>
             )}
+            {query !== "" && filteredResults.length === 0 && !isFetching && (
+              <View style={styles.emptyState}>
+                <Ionicons name="filter-outline" size={40} color="#333" />
+                <Text style={styles.emptyStateText}>
+                  {results.length > 0
+                    ? "All results on this page are filtered or blocked."
+                    : "No manga found matching your search."}
+                </Text>
+                {results.length > 0 && (
+                  <Pressable onPress={clearFilters}>
+                    <Text style={styles.resetLink}>Reset Filters</Text>
+                  </Pressable>
+                )}
+              </View>
+            )}
+
             <CardContainer search mangaSimple={filteredResults} />
           </>
         )}
 
-        {/* Modal remains the same */}
         <Modal visible={showFilters} animationType="slide" transparent>
-          {/* ... modal content ... */}
           <View style={styles.modalOverlay}>
             <View style={styles.modalContent}>
               <View style={styles.modalHeader}>
@@ -401,7 +416,6 @@ export default function Search() {
 }
 
 const styles = StyleSheet.create({
-  // ... your existing styles ...
   container: { flex: 1, paddingTop: 10 },
   searchRow: { flexDirection: "row", gap: 10, marginBottom: 15 },
   searchBox: {
@@ -563,4 +577,25 @@ const styles = StyleSheet.create({
   },
   pageText: { color: "#fff", fontWeight: "800", fontSize: 16 },
   pageTotalText: { color: "#555", fontSize: 14, fontWeight: "400" },
+  emptyState: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    marginTop: 50,
+    paddingHorizontal: 40,
+  },
+  emptyStateText: {
+    color: "#555",
+    textAlign: "center",
+    marginTop: 10,
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  resetLink: {
+    color: Colors.dark.primary,
+    marginTop: 15,
+    fontWeight: "700",
+    textTransform: "uppercase",
+    fontSize: 12,
+  },
 });

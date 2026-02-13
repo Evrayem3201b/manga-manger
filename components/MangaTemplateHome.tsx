@@ -251,7 +251,7 @@ export default function MangaTemplate({ id }: { id: string }) {
         <View style={styles.floatingActionColumn}>
           {/* Block Button */}
           <Pressable
-            style={[styles.floatingActionBtn, { backgroundColor: "#111" }]}
+            style={[styles.floatingActionBtn, { backgroundColor: "#393939c2" }]}
             onPress={handleBlockManga}
           >
             <Ionicons name="ban-outline" size={20} color="#ff4444" />
