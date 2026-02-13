@@ -2,7 +2,6 @@ import { Colors } from "@/constants/theme";
 import { useMangaDetails } from "@/hooks/fetching/mangaDetails/useMangaDetails";
 import { getBadgeColor as BadgeData } from "@/utils/BadgeData";
 import { getStatusFromName } from "@/utils/getStatus";
-import { MangaDB } from "@/utils/types";
 import { Ionicons, MaterialCommunityIcons, Octicons } from "@expo/vector-icons";
 import * as FileSystem from "expo-file-system";
 import { LinearGradient } from "expo-linear-gradient";
@@ -59,48 +58,10 @@ export default function MangaTemplate({ id }: { id: string }) {
   useEffect(() => {
     async function loadManga() {
       try {
-        const mangaRecord = await db.getFirstAsync<MangaDB>(
-          "SELECT * FROM manga WHERE id = ?",
-          [id],
-        );
-
-        if (mangaRecord) {
-          // MODE: IN LIBRARY
-          setIsInLibrary(true);
-          const genresRecords = await db.getAllAsync<any>(
-            "SELECT * FROM manga_genres WHERE manga_id = ?",
-            [id],
-          );
-          const fav = await db.getFirstAsync(
-            "SELECT 1 FROM favorites WHERE manga_id = ?",
-            [id],
-          );
-          const plan = await db.getFirstAsync(
-            "SELECT 1 FROM plan_to_read WHERE manga_id = ?",
-            [id],
-          );
-
-          setIsFavorite(!!fav);
-          setIsPlanToRead(!!plan);
-          setGenres(
-            genresRecords.map((g) => ({
-              attributes: { name: { en: g.genre } },
-            })),
-          );
-          setQuery(String(mangaRecord.current_chap || "0"));
-          setReadingLink(mangaRecord.reading_link || "");
-          setData({
-            ...mangaRecord,
-            coverUrl: { uri: mangaRecord.cover_url },
-            rating: String(mangaRecord.rating),
-          });
-        } else if (apiData) {
-          // MODE: PREVIEW (NOT IN LIBRARY)
-          setIsInLibrary(false);
-          setData(apiData);
-          setGenres(apiGenres);
-          setQuery(String(apiData.currentChap || "0"));
-        }
+        setIsInLibrary(false);
+        setData(apiData);
+        setGenres(apiGenres);
+        setQuery(String(apiData?.currentChap || "0"));
       } catch (e) {
         console.error("Load Error", e);
       } finally {
@@ -303,6 +264,24 @@ export default function MangaTemplate({ id }: { id: string }) {
         )}
       </View>
 
+      <View style={styles.sourceContainer}>
+        <Pressable
+          onPress={() => Linking.openURL(`https://mangadex.org/title/${id}`)}
+          style={({ pressed }) => [
+            styles.premiumSourceBtn,
+            { opacity: pressed ? 0.7 : 1 },
+          ]}
+        >
+          <MaterialCommunityIcons
+            name="integrated-circuit-chip"
+            size={16}
+            color={Colors.dark.primary}
+          />
+          <Text style={styles.premiumSourceText}>View on MANGADEX</Text>
+          <Ionicons name="chevron-forward" size={14} color="#555" />
+        </Pressable>
+      </View>
+
       {/* Description */}
       <View style={styles.descriptionWrapper}>
         <View
@@ -407,17 +386,6 @@ export default function MangaTemplate({ id }: { id: string }) {
         </View>
       ) : (
         <View style={styles.actionContainer}>
-          <Pressable
-            onPress={() => Linking.openURL(`https://mangadex.org/title/${id}`)}
-            style={styles.outlineBtn}
-          >
-            <MaterialCommunityIcons
-              name="web"
-              size={20}
-              color={Colors.dark.primary}
-            />
-            <Text style={styles.outlineBtnText}>View on Dex</Text>
-          </Pressable>
           <Button
             style={styles.primaryBtn}
             onPress={addToLibrary}
@@ -469,17 +437,9 @@ const styles = StyleSheet.create({
     borderColor: "rgba(255,255,255,0.2)",
   },
   moreTagText: { color: "#fff", fontSize: 12 },
-  descriptionWrapper: { marginTop: 20, width: "90%" },
+
   showMoreText: { color: Colors.dark.primary, fontWeight: "700", fontSize: 12 },
-  sectionTitle: {
-    fontSize: 12,
-    fontWeight: "700",
-    textTransform: "uppercase",
-    letterSpacing: 2,
-    color: "#555",
-    marginBottom: 15,
-    textAlign: "center",
-  },
+
   stepperSection: { marginTop: 30, width: "90%", alignItems: "center" },
   largeStepperRow: { flexDirection: "row", alignItems: "center", gap: 30 },
   circleStepBtn: {
@@ -514,12 +474,7 @@ const styles = StyleSheet.create({
     borderColor: "#222",
   },
   linkText: { flex: 1, color: "#fff", fontSize: 14 },
-  buttonRow: {
-    flexDirection: "row",
-    gap: 10,
-    marginTop: 20,
-    paddingBottom: 40,
-  },
+
   saveButton: {
     flex: 1,
     height: 50,
@@ -571,4 +526,54 @@ const styles = StyleSheet.create({
     borderColor: "rgba(255,255,255,0.1)",
   },
   markdown: { body: { color: "#aaa", fontSize: 14, lineHeight: 20 } } as any,
+  sourceContainer: {
+    width: "100%",
+    alignItems: "center",
+    marginTop: 25,
+    marginBottom: 5,
+  },
+  premiumSourceBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(255,255,255,0.03)", // Subtle depth
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.05)",
+    gap: 8,
+  },
+  premiumSourceText: {
+    color: "#888",
+    fontSize: 11,
+    fontWeight: "800",
+    letterSpacing: 1.2,
+    textTransform: "uppercase",
+  },
+  descriptionWrapper: {
+    marginTop: 15,
+    width: "90%",
+    backgroundColor: "rgba(255,255,255,0.02)", // Very slight contrast for the text box
+    padding: 15,
+    borderRadius: 20,
+  },
+  // Update your existing sectionTitle for better hierarchy
+  sectionTitle: {
+    fontSize: 11,
+    fontWeight: "800",
+    textTransform: "uppercase",
+    letterSpacing: 1.5,
+    color: "rgba(255,255,255,0.3)",
+    marginBottom: 20,
+    textAlign: "center",
+  },
+  // Clean up the bottom button row so it's strictly for local actions
+  buttonRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    width: "90%",
+    gap: 12,
+    marginTop: 30,
+    marginBottom: 50,
+  },
 });

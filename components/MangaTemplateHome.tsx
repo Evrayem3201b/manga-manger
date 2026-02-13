@@ -2,7 +2,7 @@ import { Colors } from "@/constants/theme";
 import { getBadgeColor as BadgeData } from "@/utils/BadgeData";
 import { getStatusFromName } from "@/utils/getStatus";
 import { MangaDB, SimpleDisplay, Tag as TagType } from "@/utils/types";
-import { Ionicons, Octicons } from "@expo/vector-icons";
+import { Ionicons, MaterialCommunityIcons, Octicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import { useSQLiteContext } from "expo-sqlite";
@@ -447,6 +447,23 @@ export default function MangaTemplate({ id }: { id: string }) {
           </Pressable>
         )}
       </View>
+      <View style={styles.sourceContainer}>
+        <Pressable
+          onPress={() => Linking.openURL(`https://mangadex.org/title/${id}`)}
+          style={({ pressed }) => [
+            styles.premiumSourceBtn,
+            { opacity: pressed ? 0.7 : 1 },
+          ]}
+        >
+          <MaterialCommunityIcons
+            name="integrated-circuit-chip"
+            size={16}
+            color={Colors.dark.primary}
+          />
+          <Text style={styles.premiumSourceText}>View on MANGADEX</Text>
+          <Ionicons name="chevron-forward" size={14} color="#555" />
+        </Pressable>
+      </View>
 
       <View style={{ marginTop: 20, width: "90%" }}>
         <View
@@ -547,9 +564,24 @@ export default function MangaTemplate({ id }: { id: string }) {
           <Ionicons name="open-outline" size={22} color={Colors.dark.primary} />
         </Pressable>
       </View>
+
       {/* Button Container */}
 
-      <View style={styles.buttonRow}>
+      <View
+        style={{
+          flexDirection: "row",
+
+          alignItems: "center",
+
+          width: "100%",
+
+          gap: 12,
+
+          marginTop: 20,
+
+          marginBottom: 24,
+        }}
+      >
         <Button
           style={styles.saveButton}
           textStyle={styles.saveButtonText}
@@ -608,15 +640,6 @@ const styles = StyleSheet.create({
 
   readNowText: { fontSize: 12, fontWeight: "bold" },
 
-  buttonRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    width: "100%",
-    gap: 12,
-    marginTop: 20,
-    marginBottom: 24,
-  },
-
   saveButton: {
     flex: 1,
     height: 50,
@@ -673,6 +696,56 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#222",
   },
+  sourceContainer: {
+    width: "100%",
+    alignItems: "center",
+    marginTop: 25,
+    marginBottom: 5,
+  },
+  premiumSourceBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(255,255,255,0.03)", // Subtle depth
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.05)",
+    gap: 8,
+  },
+  premiumSourceText: {
+    color: "#888",
+    fontSize: 11,
+    fontWeight: "800",
+    letterSpacing: 1.2,
+    textTransform: "uppercase",
+  },
+  descriptionWrapper: {
+    marginTop: 15,
+    width: "90%",
+    backgroundColor: "rgba(255,255,255,0.02)", // Very slight contrast for the text box
+    padding: 15,
+    borderRadius: 20,
+  },
+  // Update your existing sectionTitle for better hierarchy
+  sectionTitle: {
+    fontSize: 11,
+    fontWeight: "800",
+    textTransform: "uppercase",
+    letterSpacing: 1.5,
+    color: "rgba(255,255,255,0.3)",
+    marginBottom: 20,
+    textAlign: "center",
+  },
+  // Clean up the bottom button row so it's strictly for local actions
+  buttonRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    width: "90%",
+    gap: 12,
+    marginTop: 30,
+    marginBottom: 50,
+  },
 
   btnPinned: {
     backgroundColor: Colors.dark.primary,
@@ -691,16 +764,6 @@ const styles = StyleSheet.create({
   },
 
   progressCount: { fontSize: 16, fontFamily: "lm", color: Colors.dark.text },
-
-  sectionTitle: {
-    fontSize: 13,
-    fontWeight: "700",
-    textTransform: "uppercase",
-    letterSpacing: 2,
-    color: "#555",
-    marginBottom: 20,
-    textAlign: "center",
-  },
 
   largeStepperRow: {
     flexDirection: "row",
