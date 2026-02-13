@@ -63,6 +63,11 @@ export default function Home() {
           `ALTER TABLE app_meta ADD COLUMN value TEXT DEFAULT '0'`,
         );
       }
+      if (!metaColumns.includes("latest_sync")) {
+        await db.runAsync(
+          `ALTER TABLE app_meta ADD COLUMN latest_sync TEXT DEFAULT NULL`,
+        );
+      }
       return true;
     } catch (e) {
       Alert.alert("Migration Error", `${e}`);

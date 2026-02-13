@@ -582,49 +582,43 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     height: 46,
     borderRadius: 16,
-
-    backgroundColor: "#1a1a1e", // elevated dark surface
+    backgroundColor: "#1a1a1e",
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.06)",
-
     marginBottom: 24,
   },
+
   readingLinkContainer: {
-    width: "100%", // Increased from 80% to give the text more room
+    width: "100%",
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingRight: 6, // Slightly less padding on the right to tuck the button in
+    paddingRight: 6,
   },
-  input: {
-    flex: 1, // 🚀 This pushes the button to the right
-    fontSize: 14,
-    color: "#f5f5f7",
-    marginRight: 8,
-  },
+
+  input: { flex: 1, fontSize: 14, color: "#f5f5f7", marginRight: 8 },
+
   readNowButton: {
-    height: 34, // Sized to fit inside the 46px searchBox
+    height: 34,
     paddingHorizontal: 12,
     borderRadius: 10,
     backgroundColor: Colors.dark.primary,
     minWidth: 90,
   },
-  readNowText: {
-    fontSize: 12,
-    fontWeight: "bold",
-  },
+
+  readNowText: { fontSize: 12, fontWeight: "bold" },
+
   buttonRow: {
     flexDirection: "row",
     alignItems: "center",
-    width: "100%", // ❗️important
-    // paddingHorizontal: 20, // instead of 90% width
+    width: "100%",
     gap: 12,
     marginTop: 20,
     marginBottom: 24,
   },
 
   saveButton: {
-    flex: 1, // takes remaining space
+    flex: 1,
     height: 50,
     borderRadius: 18,
     backgroundColor: Colors.dark.primary,
@@ -637,9 +631,8 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: Colors.dark.background,
   },
+
   deleteButton: {
-    // width: 50, // 🔒 fixed size (no flex)
-    // height: 50,
     borderRadius: 18,
     backgroundColor: "rgba(255, 68, 68, 0.12)",
     borderWidth: 1,
@@ -649,6 +642,7 @@ const styles = StyleSheet.create({
     padding: 0,
     marginLeft: "auto",
   },
+
   floatingActionColumn: {
     position: "absolute",
     right: 12,
@@ -656,17 +650,19 @@ const styles = StyleSheet.create({
     zIndex: 10,
     gap: 10,
   },
+
   floatingActionBtn: {
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: "#191919AA", // semi-transparent dark circle
+    backgroundColor: "#191919AA",
     justifyContent: "center",
     alignItems: "center",
     borderWidth: 1,
     borderColor: "rgba(255, 255, 255, 0.1)",
-    backdropFilter: "blur(10px)", // Works in some RN environments, otherwise just use opacity
+    backdropFilter: "blur(10px)",
   },
+
   actionBtn: {
     width: 44,
     height: 44,
@@ -677,11 +673,14 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#222",
   },
+
   btnPinned: {
     backgroundColor: Colors.dark.primary,
     borderColor: Colors.dark.primary,
   },
+
   btnQueue: { backgroundColor: "#50fa7b", borderColor: "#50fa7b" },
+
   actionDivider: { height: 1, backgroundColor: "#222", marginVertical: 4 },
 
   progressHeader: {
@@ -690,18 +689,8 @@ const styles = StyleSheet.create({
     alignItems: "flex-end",
     marginBottom: 12,
   },
-  // sectionTitle: {
-  //   fontSize: 12,
-  //   fontWeight: "700",
-  //   textTransform: "uppercase",
-  //   letterSpacing: 1,
-  //   color: "#888",
-  // },
-  progressCount: {
-    fontSize: 16,
-    fontFamily: "lm", // Using your custom font
-    color: Colors.dark.text,
-  },
+
+  progressCount: { fontSize: 16, fontFamily: "lm", color: Colors.dark.text },
 
   sectionTitle: {
     fontSize: 13,
@@ -712,12 +701,14 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     textAlign: "center",
   },
+
   largeStepperRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: 30,
   },
+
   circleStepBtn: {
     width: 60,
     height: 60,
@@ -728,18 +719,18 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.1)",
   },
-  hugeNumberContainer: {
-    alignItems: "center",
-    minWidth: 100,
-  },
+
+  hugeNumberContainer: { alignItems: "center", minWidth: 100 },
+
   hugeNumberInput: {
     fontSize: 48,
-    fontFamily: "ni", // Your custom heading font
+    fontFamily: "ni",
     color: "#fff",
     textAlign: "center",
     padding: 0,
     margin: 0,
   },
+
   totalLabel: {
     fontSize: 12,
     color: Colors.dark.primary,
@@ -753,29 +744,28 @@ const styles = StyleSheet.create({
     color: "#444",
     paddingHorizontal: 10,
   },
+
   linkLargeButton: {
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: "#1a1a1e",
-    // Remove vertical padding, use height for consistency
     height: 60,
     paddingHorizontal: 16,
     borderRadius: 20,
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.05)",
   },
+
   linkText: {
     flex: 1,
     color: "#eee",
     fontSize: 15,
-    height: "100%", // Let it fill the bar vertically
+    height: "100%",
     marginHorizontal: 10,
-    paddingVertical: 0, // Reset default Android padding
+    paddingVertical: 0,
   },
-  openIconWrapper: {
-    padding: 10, // Increase the hit-box of the open icon
-    marginRight: -10, // Pull it back to alignment
-  },
+
+  openIconWrapper: { padding: 10, marginRight: -10 },
 
   mangaImageWrapper: {
     width: 250,
@@ -788,20 +778,17 @@ const styles = StyleSheet.create({
     shadowRadius: 10,
     backgroundColor: "#1a1a1e",
   },
-  mangaImage: {
-    width: "100%",
-    height: "100%",
-    borderRadius: 25,
-  },
-  placeholderContainer: {
-    justifyContent: "center",
-    alignItems: "center",
-  },
+
+  mangaImage: { width: "100%", height: "100%", borderRadius: 25 },
+
+  placeholderContainer: { justifyContent: "center", alignItems: "center" },
+
   placeholderContent: {
     alignItems: "center",
     paddingHorizontal: 20,
     zIndex: 2,
   },
+
   placeholderText: {
     color: "rgba(255,255,255,0.4)",
     fontSize: 20,
@@ -812,6 +799,7 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
     marginTop: 10,
   },
+
   placeholderEdge: {
     position: "absolute",
     left: 0,
@@ -822,15 +810,14 @@ const styles = StyleSheet.create({
     borderRightWidth: 1,
     borderRightColor: "rgba(0,0,0,0.2)",
   },
+
   markdown: {
-    // Standard text
     body: {
       color: Colors.dark.mutedForeground,
       fontSize: 14,
       lineHeight: 22,
-      fontFamily: "poppins", // Matches your card font
+      fontFamily: "poppins",
     },
-    // Headers (# Header)
     heading1: {
       color: "#ffffff",
       fontSize: 24,
@@ -843,36 +830,16 @@ const styles = StyleSheet.create({
       fontWeight: "700",
       marginVertical: 8,
     },
-    // Bold (**text**)
-    strong: {
-      color: "#ffffff",
-      fontWeight: "bold",
-    },
-    // Italics (*text*)
-    em: {
-      fontStyle: "italic",
-    },
-    // Links ([text](url))
-    link: {
-      color: Colors.dark.primary,
-      textDecorationLine: "underline",
-    },
-    // List items
-    bullet_list: {
-      marginVertical: 10,
-    },
-    list_item: {
-      flexDirection: "row",
-      justifyContent: "flex-start",
-    },
-    // Horizontal rule (---)
+    strong: { color: "#ffffff", fontWeight: "bold" },
+    em: { fontStyle: "italic" },
+    link: { color: Colors.dark.primary, textDecorationLine: "underline" },
+    bullet_list: { marginVertical: 10 },
+    list_item: { flexDirection: "row", justifyContent: "flex-start" },
     hr: {
       backgroundColor: "rgba(255,255,255,0.1)",
       height: 1,
       marginVertical: 15,
     },
-
-    // Code blocks (backticks)
     code_inline: {
       backgroundColor: "#2c2c2e",
       color: Colors.dark.primary,

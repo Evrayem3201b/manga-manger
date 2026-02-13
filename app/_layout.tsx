@@ -6,6 +6,7 @@ import { Colors } from "@/constants/theme";
 import { useImmersiveNavBar } from "@/hooks/useImmersiveNavBar";
 import { DefaultTheme, ThemeProvider } from "@react-navigation/native";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+
 import { SQLiteProvider } from "expo-sqlite";
 
 export default function RootLayout() {
@@ -122,10 +123,13 @@ CREATE TABLE IF NOT EXISTS search_cache (
 
 
 CREATE TABLE IF NOT EXISTS app_meta (
-  prop TEXT,
-  value TEXT DEFAULT '0'
-);
+              prop TEXT PRIMARY KEY,
+              value TEXT DEFAULT '0',
+              latest_sync TEXT DEFAULT '0'
+            );
 
+            -- Ensure core meta properties exist
+            INSERT OR IGNORE INTO app_meta (prop, value, latest_sync) VALUES ('needs_cover_sync', '0', '0');
 CREATE INDEX IF NOT EXISTS idx_manga_title ON manga(name);
 CREATE INDEX IF NOT EXISTS idx_chapters_manga ON chapters(manga_id);
 CREATE INDEX IF NOT EXISTS idx_genres_manga ON manga_genres(manga_id);

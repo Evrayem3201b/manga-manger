@@ -3,12 +3,12 @@ import { getStatusFromName } from "@/utils/getStatus";
 import { SimpleDisplay } from "@/utils/types";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import React from "react";
+import React, { memo } from "react";
 import { ActivityIndicator, Image, StyleSheet, Text, View } from "react-native";
 import Badge from "./badge";
 import { ThemedText } from "./themed-text";
 
-export default function Card({
+function Card({
   name,
   totalChap,
   status,
@@ -142,6 +142,8 @@ export default function Card({
     </View>
   );
 }
+
+export default memo(Card);
 
 const styles = StyleSheet.create({
   cardContainer: { width: 165, marginBottom: 15 },

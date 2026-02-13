@@ -53,7 +53,12 @@ export default function Search() {
       setDebounced(query);
       setPage(0); // Reset pagination to 0 on every new query
       const trimmed = query.trim();
-      if (trimmed.length > 2) {
+
+      const lastSearch = recentSearches[0]?.query;
+      if (
+        trimmed.length > 2 &&
+        trimmed.toLowerCase() !== lastSearch?.toLowerCase()
+      ) {
         saveSearch(trimmed);
       }
     }, 600);
@@ -290,7 +295,7 @@ export default function Search() {
                     </Pressable>
                   )}
                 </View>
-                <div style={styles.chipRow}>
+                <View style={styles.chipRow}>
                   {["ongoing", "completed", "hiatus", "cancelled"].map((s) => (
                     <Pressable
                       key={s}
@@ -312,7 +317,7 @@ export default function Search() {
                       </Text>
                     </Pressable>
                   ))}
-                </div>
+                </View>
 
                 {availableGenres.length > 0 && (
                   <>
@@ -324,7 +329,7 @@ export default function Search() {
                         </Pressable>
                       )}
                     </View>
-                    <div style={styles.chipRow}>
+                    <View style={styles.chipRow}>
                       {availableGenres.map((g) => (
                         <Pressable
                           key={g}
@@ -345,7 +350,7 @@ export default function Search() {
                           </Text>
                         </Pressable>
                       ))}
-                    </div>
+                    </View>
                   </>
                 )}
               </ScrollView>

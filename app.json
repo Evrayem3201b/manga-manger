@@ -11,6 +11,7 @@
     "ios": {
       "supportsTablet": true
     },
+
     "android": {
       "adaptiveIcon": {
         "backgroundImage": "./assets/images/Logo.jpg"
@@ -23,7 +24,23 @@
       "output": "static",
       "favicon": "./assets/images/Logo.jpg"
     },
-    "plugins": ["expo-asset", "expo-router", "expo-web-browser"],
+    "plugins": [
+      "expo-asset",
+      "expo-router",
+      "expo-web-browser",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#030304",
+          "image": "./assets/images/logo-splash.png",
+          "dark": {
+            "image": "./assets/images/logo-splash.png",
+            "backgroundColor": "#030304"
+          },
+          "imageWidth": 200
+        }
+      ]
+    ],
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true

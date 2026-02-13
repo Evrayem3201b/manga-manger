@@ -137,9 +137,9 @@ export default function Settings() {
 
     const dbFolderPath = `${cleanDocUri}/SQLite`;
     const tempBackupUri = `${dbFolderPath}/${tempFileName}`;
+    let isAttached = false;
 
     try {
-      // 1. Flush main DB
       await db.runAsync(`PRAGMA wal_checkpoint(FULL)`);
 
       const originalDbFile = new File(dbFolderPath, "manga.db");
@@ -148,31 +148,28 @@ export default function Settings() {
       const tempFile = new File(dbFolderPath, tempFileName);
       if (tempFile.exists) await tempFile.delete();
 
-      // 2. Copy the file
       await originalDbFile.copy(tempFile);
 
-      // 3. CRITICAL: SQLite engine needs a raw path without "file://"
-      // We strip "file://" from the beginning of the string
       const rawSqlPath = tempBackupUri.replace("file://", "");
-
-      // 4. ATTACH and Modify
       await db.runAsync(`ATTACH DATABASE '${rawSqlPath}' AS backup`);
+      isAttached = true;
 
       try {
         await db.runAsync(`UPDATE backup.manga SET cover_url = ''`);
         await db.runAsync(
-          `INSERT OR REPLACE INTO backup.app_meta (prop, value) VALUES ('needs_cover_sync', '1')`,
+          `INSERT OR REPLACE INTO backup.app_meta (prop, value, latest_sync) VALUES ('needs_cover_sync', '1', ?)`,
+          [Date.now().toString()],
         );
       } finally {
-        // Safe detach
         await db.runAsync(`DETACH DATABASE backup`);
+        isAttached = false;
       }
 
-      // 5. Export to user-picked directory
+      // Fix: Handle directory picker cancellation
       const destinationFolder = await Directory.pickDirectoryAsync();
       if (!destinationFolder) {
         await tempFile.delete();
-        return;
+        return; // Silent exit on cancel
       }
 
       const backupFile = destinationFolder.createFile(
@@ -182,24 +179,23 @@ export default function Settings() {
 
       const modifiedBytes = await tempFile.bytes();
       await backupFile.write(modifiedBytes);
-
-      // 6. Final Cleanup
       await tempFile.delete();
 
       Alert.alert("Success", "Backup exported successfully!");
     } catch (e: any) {
-      Alert.alert("Detailed Export Error:", e);
-      // Fallback detach
-      try {
-        await db.runAsync(`DETACH DATABASE backup`);
-      } catch {}
-      Alert.alert("Export Error", `Database sync failed.\n\n${e.message}`);
+      if (isAttached) {
+        try {
+          await db.runAsync(`DETACH DATABASE backup`);
+        } catch {}
+      }
+      Alert.alert("Export Error", `Database sync failed.`);
     }
   }
 
   async function databaseImport() {
     try {
       const result = await DocumentPicker.getDocumentAsync({ type: ["*/*"] });
+      // Fix: Already handles cancellation correctly here
       if (result.canceled) return;
 
       const pickedFile = result.assets[0];
@@ -216,12 +212,13 @@ export default function Settings() {
               await new File(pickedFile.uri).copy(targetFile);
               Alert.alert("Success", "Please restart the app.");
             } catch (err) {
-              Alert.alert("Error", "File is locked.");
+              Alert.alert("Error", "File is locked or invalid.");
             }
           },
         },
       ]);
     } catch (e) {
+      // Only alert if it's a real failure, not a cancel
       Alert.alert("Error", "Import failed.");
     }
   }
@@ -366,7 +363,7 @@ export default function Settings() {
           <SettingItem
             icon="information-circle-outline"
             label="App Version"
-            subLabel="v1.6.1"
+            subLabel="v1.6.2"
             color="#333"
             showChevron={false}
           />

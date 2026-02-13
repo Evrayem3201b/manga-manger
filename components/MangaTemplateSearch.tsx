@@ -1,18 +1,19 @@
 import { Colors } from "@/constants/theme";
 import { useMangaDetails } from "@/hooks/fetching/mangaDetails/useMangaDetails";
+import { getBadgeColor as BadgeData } from "@/utils/BadgeData";
 import { getStatusFromName } from "@/utils/getStatus";
-import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import { MangaDB } from "@/utils/types";
+import { Ionicons, MaterialCommunityIcons, Octicons } from "@expo/vector-icons";
 import * as FileSystem from "expo-file-system";
 import { LinearGradient } from "expo-linear-gradient";
+import { useRouter } from "expo-router";
 import { useSQLiteContext } from "expo-sqlite";
-import React, { useState } from "react";
-
+import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
   Image,
   Linking,
-  Platform,
   Pressable,
   StyleSheet,
   Text,
@@ -29,152 +30,252 @@ import { Button } from "./ui/button";
 const INITIAL_VISIBLE_TAGS = 5;
 
 export default function MangaTemplate({ id }: { id: string }) {
-  const { result: data, isLoading, genres } = useMangaDetails(id);
+  const db = useSQLiteContext();
+  const router = useRouter();
 
+  // --- STATE ---
+  const {
+    result: apiData,
+    isLoading: apiLoading,
+    genres: apiGenres,
+  } = useMangaDetails(id);
+  const [isInLibrary, setIsInLibrary] = useState(false);
+  const [isAdding, setIsAdding] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Local Data State (Merged from API or DB)
+  const [data, setData] = useState<any>(null);
+  const [genres, setGenres] = useState<any[] | null>(null);
+  const [query, setQuery] = useState("0");
+  const [readingLink, setReadingLink] = useState("");
+
+  // UI States
   const [expanded, setExpanded] = useState(false);
   const [expandedText, setExpandedText] = useState(false);
-  const [query, setQuery] = useState(String(data?.currentChap || "0"));
-  const [downloadedImageUri, setDownloadedImageUri] = useState<string | null>(
-    null,
-  );
-  const db = useSQLiteContext();
+  const [isFavorite, setIsFavorite] = useState(false);
+  const [isPlanToRead, setIsPlanToRead] = useState(false);
 
-  if (isLoading) {
-    return <ActivityIndicator size="large" color={Colors.dark.text} />;
-  }
-
-  const visibleGenres = expanded
-    ? genres
-    : genres?.slice(0, INITIAL_VISIBLE_TAGS);
-
-  const hiddenCount =
-    genres && genres.length > INITIAL_VISIBLE_TAGS
-      ? genres.length - INITIAL_VISIBLE_TAGS
-      : 0;
-
-  async function openMangaSite() {
-    const url = `https://mangadex.org/title/${id}/${data?.name}`;
-    const supported = await Linking.canOpenURL(url);
-    if (supported) {
-      await Linking.openURL(url);
-    } else {
-      Alert.alert("Error", "Don't know how to open this URL");
-    }
-  }
-
-  async function addToLibrary() {
-    if (!data) return;
-
-    try {
-      const localUri = await handleImageDownload();
-
-      if (!localUri) {
-        Alert.alert("Error", "Could not download cover image.");
-        return;
-      }
-
-      await db.withTransactionAsync(async () => {
-        await db.runAsync(
-          `INSERT OR REPLACE INTO manga (id, name, description, cover_url, cover_online_link, status, year, rating, total_chap, current_chap, is_adult, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          [
-            data.id,
-            data.name,
-            data.description,
-            localUri,
-            data.coverUrl?.uri || null,
-            data.status,
-            data.year,
-            data.rating ? parseFloat(data.rating) : null,
-            data.totalChap ?? null,
-            parseInt(query) || 0,
-            data.isAdult,
-            Date.now(),
-            Date.now(),
-          ],
+  // --- 1. INITIAL LOAD: Check Library vs API ---
+  useEffect(() => {
+    async function loadManga() {
+      try {
+        const mangaRecord = await db.getFirstAsync<MangaDB>(
+          "SELECT * FROM manga WHERE id = ?",
+          [id],
         );
 
-        if (genres) {
-          for (const genre of genres) {
-            await db.runAsync(
-              `INSERT OR REPLACE INTO manga_genres (manga_id, genre) VALUES (?, ?)`,
-              [data.id, genre.attributes.name.en],
-            );
-          }
+        if (mangaRecord) {
+          // MODE: IN LIBRARY
+          setIsInLibrary(true);
+          const genresRecords = await db.getAllAsync<any>(
+            "SELECT * FROM manga_genres WHERE manga_id = ?",
+            [id],
+          );
+          const fav = await db.getFirstAsync(
+            "SELECT 1 FROM favorites WHERE manga_id = ?",
+            [id],
+          );
+          const plan = await db.getFirstAsync(
+            "SELECT 1 FROM plan_to_read WHERE manga_id = ?",
+            [id],
+          );
+
+          setIsFavorite(!!fav);
+          setIsPlanToRead(!!plan);
+          setGenres(
+            genresRecords.map((g) => ({
+              attributes: { name: { en: g.genre } },
+            })),
+          );
+          setQuery(String(mangaRecord.current_chap || "0"));
+          setReadingLink(mangaRecord.reading_link || "");
+          setData({
+            ...mangaRecord,
+            coverUrl: { uri: mangaRecord.cover_url },
+            rating: String(mangaRecord.rating),
+          });
+        } else if (apiData) {
+          // MODE: PREVIEW (NOT IN LIBRARY)
+          setIsInLibrary(false);
+          setData(apiData);
+          setGenres(apiGenres);
+          setQuery(String(apiData.currentChap || "0"));
         }
-      });
-
-      Alert.alert("Success", "Manga added to your library!");
-    } catch (e) {
-      Alert.alert("Error", "Failed to add manga to library." + e);
+      } catch (e) {
+        console.error("Load Error", e);
+      } finally {
+        setIsLoading(false);
+      }
     }
-  }
+    loadManga();
+  }, [id, apiData, apiGenres, db]);
 
-  async function handleImageDownload() {
-    if (!data?.coverUrl.uri) return null;
-
+  // --- 2. ACTIONS: LIBRARY MANAGEMENT ---
+  async function handleImageDownload(coverUri: string) {
     try {
       const coversDir = new FileSystem.Directory(
         FileSystem.Paths.document,
         "covers",
       );
-
-      if (!coversDir.exists) {
-        await coversDir.create();
-      }
-
-      const destinationFile = new FileSystem.File(coversDir, `${data.id}.jpg`);
-
-      const output = await FileSystem.File.downloadFileAsync(
-        data.coverUrl.uri,
-        destinationFile,
-        { idempotent: true },
-      );
-
-      setDownloadedImageUri(output.uri);
+      if (!coversDir.exists) await coversDir.create();
+      const dest = new FileSystem.File(coversDir, `${id}.jpg`);
+      const output = await FileSystem.File.downloadFileAsync(coverUri, dest, {
+        idempotent: true,
+      });
       return output.uri;
-    } catch (error) {
-      Alert.alert("New API Download Error:" + error);
+    } catch (e) {
       return null;
     }
   }
 
+  async function addToLibrary() {
+    if (!data || isAdding) return;
+    setIsAdding(true);
+    try {
+      const localUri = await handleImageDownload(data.coverUrl?.uri);
+      if (!localUri) throw new Error("Image download failed");
+
+      await db.withTransactionAsync(async () => {
+        await db.runAsync(
+          `INSERT OR REPLACE INTO manga (id, name, description, cover_url, cover_online_link, status, year, rating, total_chap, current_chap, is_adult, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            id,
+            data.name,
+            data.description,
+            localUri,
+            data.coverUrl?.uri,
+            data.status,
+            data.year,
+            data.rating,
+            data.totalChap,
+            parseInt(query),
+            data.isAdult ? 1 : 0,
+            Date.now(),
+            Date.now(),
+          ],
+        );
+        if (genres) {
+          for (const g of genres) {
+            await db.runAsync(
+              "INSERT OR REPLACE INTO manga_genres (manga_id, genre) VALUES (?, ?)",
+              [id, g.attributes.name.en],
+            );
+          }
+        }
+      });
+      setIsInLibrary(true);
+      Alert.alert("Success", "Added to Library");
+    } catch (e) {
+      Alert.alert("Error", "Failed to add.");
+    } finally {
+      setIsAdding(false);
+    }
+  }
+
+  async function saveProgress() {
+    try {
+      await db.runAsync(
+        "UPDATE manga SET current_chap = ?, reading_link = ?, updated_at = ? WHERE id = ?",
+        [parseInt(query) || 0, readingLink, Date.now(), id],
+      );
+      Alert.alert("Success", "Progress saved!");
+    } catch (e) {
+      Alert.alert("Error", "Save failed");
+    }
+  }
+
+  async function deleteManga() {
+    try {
+      await db.runAsync("DELETE FROM manga WHERE id = ?", [id]);
+      router.replace("/(tabs)/homeNew");
+    } catch (e) {
+      Alert.alert("Error", "Delete failed");
+    }
+  }
+
+  const toggleFavorite = async () => {
+    const next = !isFavorite;
+    setIsFavorite(next);
+    if (next)
+      await db.runAsync(
+        "INSERT OR REPLACE INTO favorites (manga_id, added_at) VALUES (?, ?)",
+        [id, Date.now()],
+      );
+    else await db.runAsync("DELETE FROM favorites WHERE manga_id = ?", [id]);
+  };
+
+  const togglePlanToRead = async () => {
+    const next = !isPlanToRead;
+    setIsPlanToRead(next);
+    if (next)
+      await db.runAsync(
+        "INSERT OR REPLACE INTO plan_to_read (manga_id, added_at) VALUES (?, ?)",
+        [id, Date.now()],
+      );
+    else await db.runAsync("DELETE FROM plan_to_read WHERE manga_id = ?", [id]);
+  };
+
+  // --- RENDER HELPERS ---
+  if (isLoading || apiLoading) {
+    return (
+      <View style={styles.centered}>
+        <ActivityIndicator size="large" color={Colors.dark.primary} />
+      </View>
+    );
+  }
+
+  const visibleGenres = expanded
+    ? genres
+    : genres?.slice(0, INITIAL_VISIBLE_TAGS);
+  const hiddenCount = Math.max(0, (genres?.length || 0) - INITIAL_VISIBLE_TAGS);
+
   return (
-    <ScreenHug
-      title={""}
-      style={{
-        paddingTop: 30,
-        alignItems: "center",
-        marginTop: -10,
-      }}
-      scroll={true}
-    >
+    <ScreenHug title="" style={{ paddingTop: 30, alignItems: "center" }} scroll>
       <View style={{ position: "relative" }}>
         <Badge status={getStatusFromName(data?.status || "ongoing")} />
-        <View style={styles.mangaImageWrapper}>
-          {data?.coverUrl?.uri ? (
-            <Image source={data.coverUrl} style={styles.mangaImage} />
-          ) : (
-            <View style={[styles.mangaImage, styles.placeholderContainer]}>
-              <LinearGradient
-                colors={["#1e1e24", "#44318d"]}
-                style={StyleSheet.absoluteFill}
+
+        {/* Floating Actions (Only if in Library) */}
+        {isInLibrary && (
+          <View style={styles.floatingActionColumn}>
+            <Pressable
+              style={[
+                styles.floatingActionBtn,
+                {
+                  backgroundColor: BadgeData("favorites")?.badgeBackgroundColor,
+                },
+              ]}
+              onPress={toggleFavorite}
+            >
+              <Ionicons
+                name={isFavorite ? "heart" : "heart-outline"}
+                size={22}
+                color={isFavorite ? "#ff4444" : "#fff"}
               />
-              <View style={styles.placeholderContent}>
-                <Ionicons
-                  name="library-outline"
-                  size={60}
-                  color="rgba(255,255,255,0.15)"
-                />
-                <Text style={styles.placeholderText}>
-                  {data?.name || "Loading..."}
-                </Text>
-              </View>
-              <View style={styles.placeholderEdge} />
-            </View>
-          )}
+            </Pressable>
+            <Pressable
+              style={[
+                styles.floatingActionBtn,
+                {
+                  backgroundColor:
+                    BadgeData("plan-to-read")?.badgeBackgroundColor,
+                },
+              ]}
+              onPress={togglePlanToRead}
+            >
+              <Ionicons
+                name={isPlanToRead ? "bookmark" : "bookmark-outline"}
+                size={22}
+                color={isPlanToRead ? Colors.dark.primary : "#fff"}
+              />
+            </Pressable>
+          </View>
+        )}
+
+        <View style={styles.mangaImageWrapper}>
+          <Image source={data?.coverUrl} style={styles.mangaImage} />
           <LinearGradient
-            colors={["rgba(0,0,0,0.75)", "rgba(0,0,0,0.0)"]}
+            colors={["rgba(0,0,0,0.75)", "rgba(0,0,0,0)"]}
             start={{ x: 0.5, y: 1 }}
             end={{ x: 0.5, y: 0.8 }}
             style={StyleSheet.absoluteFillObject}
@@ -182,25 +283,15 @@ export default function MangaTemplate({ id }: { id: string }) {
         </View>
       </View>
 
-      <Text
-        style={{
-          marginTop: 20,
-          fontSize: 40,
-          textAlign: "center",
-          fontFamily: "ni",
-          color: Colors.dark.text,
-        }}
-        selectable
-      >
+      <Text style={styles.mangaTitle} selectable>
         {data?.name}
       </Text>
 
+      {/* Genres */}
       <View style={styles.genreContainer}>
-        {visibleGenres?.map((tag: any) => {
-          const genre = tag.attributes.name.en;
-          return <Tag title={genre} key={tag.id} />;
-        })}
-
+        {visibleGenres?.map((tag: any, i: number) => (
+          <Tag title={tag.attributes.name.en} key={i} />
+        ))}
         {hiddenCount > 0 && (
           <Pressable onPress={() => setExpanded(!expanded)}>
             <View style={styles.moreTag}>
@@ -212,49 +303,38 @@ export default function MangaTemplate({ id }: { id: string }) {
         )}
       </View>
 
-      <View style={{ marginTop: 20, width: "90%" }}>
+      {/* Description */}
+      <View style={styles.descriptionWrapper}>
         <View
           style={{
             maxHeight: expandedText ? undefined : 60,
             overflow: "hidden",
           }}
         >
-          <Markdown
-            style={styles.markdown}
-            onLinkPress={(url) => {
-              Linking.openURL(url).catch(() =>
-                Alert.alert("Error", "Could not open link"),
-              );
-              return false;
-            }}
-          >
-            {data?.description || "No description available."}
+          <Markdown style={styles.markdown}>
+            {data?.description || "No description."}
           </Markdown>
         </View>
-
         <Pressable
           onPress={() => setExpandedText(!expandedText)}
           style={{ paddingVertical: 8 }}
         >
-          <ThemedText style={{ color: Colors.dark.primary, fontWeight: "700" }}>
+          <ThemedText style={styles.showMoreText}>
             {expandedText ? "SHOW LESS ↑" : "SHOW MORE ↓"}
           </ThemedText>
         </Pressable>
       </View>
 
+      {/* Stepper Section */}
       <View style={styles.stepperSection}>
         <ThemedText style={styles.sectionTitle}>Current Progress</ThemedText>
-
         <View style={styles.largeStepperRow}>
           <Pressable
             style={styles.circleStepBtn}
-            onPress={() =>
-              setQuery(String(Math.max(0, parseInt(query || "0") - 1)))
-            }
+            onPress={() => setQuery(String(Math.max(0, parseInt(query) - 1)))}
           >
             <Ionicons name="remove" size={28} color="#fff" />
           </Pressable>
-
           <View style={styles.hugeNumberContainer}>
             <TextInput
               keyboardType="numeric"
@@ -265,41 +345,114 @@ export default function MangaTemplate({ id }: { id: string }) {
             />
             <Text style={styles.totalLabel}>OF {data?.totalChap || "?"}</Text>
           </View>
-
           <Pressable
             style={styles.circleStepBtn}
-            onPress={() => setQuery(String(parseInt(query || "0") + 1))}
+            onPress={() => setQuery(String(parseInt(query) + 1))}
           >
             <Ionicons name="add" size={28} color="#fff" />
           </Pressable>
         </View>
       </View>
 
-      <View style={styles.actionContainer}>
-        {/* Elegant Read from Site Button */}
-        <Pressable onPress={openMangaSite} style={styles.outlineBtn}>
-          <MaterialCommunityIcons
-            name="web"
-            size={20}
-            color={Colors.dark.primary}
-            style={{ marginRight: 8 }}
-          />
-          <Text style={styles.outlineBtnText}>Read from Site</Text>
-        </Pressable>
-
-        <Button
-          style={styles.primaryBtn}
-          textStyle={{ flexGrow: 1, textAlign: "center" }}
-          onPress={() => addToLibrary()}
-        >
-          {"Add to Library"}
-        </Button>
-      </View>
+      {/* Conditional Footer Actions */}
+      {isInLibrary ? (
+        <View style={{ width: "90%" }}>
+          <ThemedText style={[styles.sectionTitle, { marginTop: 40 }]}>
+            Reading Source
+          </ThemedText>
+          <View style={styles.linkLargeButton}>
+            <Ionicons name="link" size={20} color={Colors.dark.primary} />
+            <TextInput
+              placeholder="Paste link..."
+              placeholderTextColor="#444"
+              style={styles.linkText}
+              value={readingLink}
+              onChangeText={setReadingLink}
+              autoCapitalize="none"
+            />
+            <Pressable
+              onPress={() =>
+                Linking.openURL(readingLink).catch(() =>
+                  Alert.alert("Error", "Invalid link"),
+                )
+              }
+            >
+              <Ionicons
+                name="open-outline"
+                size={22}
+                color={Colors.dark.primary}
+              />
+            </Pressable>
+          </View>
+          <View style={styles.buttonRow}>
+            <Button style={styles.saveButton} onPress={saveProgress}>
+              Save Progress
+            </Button>
+            <Button
+              style={styles.deleteButton}
+              onPress={() =>
+                Alert.alert("Delete", "Remove?", [
+                  { text: "No" },
+                  {
+                    text: "Delete",
+                    onPress: deleteManga,
+                    style: "destructive",
+                  },
+                ])
+              }
+            >
+              <Octicons name="trash" size={24} color="#ff4444" />
+            </Button>
+          </View>
+        </View>
+      ) : (
+        <View style={styles.actionContainer}>
+          <Pressable
+            onPress={() => Linking.openURL(`https://mangadex.org/title/${id}`)}
+            style={styles.outlineBtn}
+          >
+            <MaterialCommunityIcons
+              name="web"
+              size={20}
+              color={Colors.dark.primary}
+            />
+            <Text style={styles.outlineBtnText}>View on Dex</Text>
+          </Pressable>
+          <Button
+            style={styles.primaryBtn}
+            onPress={addToLibrary}
+            disabled={isAdding}
+          >
+            {isAdding ? <ActivityIndicator color="#fff" /> : "Add to Library"}
+          </Button>
+        </View>
+      )}
     </ScreenHug>
   );
 }
 
 const styles = StyleSheet.create({
+  centered: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#000",
+  },
+  mangaImageWrapper: {
+    width: 250,
+    height: 350,
+    borderRadius: 25,
+    overflow: "hidden",
+    backgroundColor: "#1a1a1e",
+  },
+  mangaImage: { width: "100%", height: "100%", borderRadius: 25 },
+  mangaTitle: {
+    marginTop: 20,
+    fontSize: 32,
+    textAlign: "center",
+    fontFamily: "ni",
+    color: "#fff",
+  },
   genreContainer: {
     flexWrap: "wrap",
     flexDirection: "row",
@@ -313,151 +466,109 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderRadius: 999,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.25)",
+    borderColor: "rgba(255,255,255,0.2)",
   },
-  moreTagText: {
-    color: Colors.dark.text,
-    fontSize: 13,
-    opacity: 0.85,
-  },
-  stepperSection: {
-    marginTop: 40,
-    marginBottom: 20,
-    width: "90%",
-    alignItems: "center",
-  },
-  actionContainer: {
-    width: "100%",
-    gap: 12,
-    marginTop: 10,
-    paddingBottom: 40,
-  },
-  outlineBtn: {
-    width: "100%",
-    height: 54,
-    borderRadius: 20,
-    borderWidth: 1.5,
-    borderColor: Colors.dark.primary,
-    flexDirection: "row",
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: "transparent",
-  },
-  outlineBtnText: {
-    color: Colors.dark.primary,
-    fontSize: 16,
-    fontWeight: "800",
-  },
-  primaryBtn: {
-    width: "100%",
-    height: 54,
-    justifyContent: "center",
-    alignItems: "center",
-    flexDirection: "row",
-    borderRadius: 20,
-    backgroundColor: Colors.dark.primary,
-  },
+  moreTagText: { color: "#fff", fontSize: 12 },
+  descriptionWrapper: { marginTop: 20, width: "90%" },
+  showMoreText: { color: Colors.dark.primary, fontWeight: "700", fontSize: 12 },
   sectionTitle: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: "700",
     textTransform: "uppercase",
     letterSpacing: 2,
     color: "#555",
-    marginBottom: 20,
+    marginBottom: 15,
     textAlign: "center",
   },
-  largeStepperRow: {
+  stepperSection: { marginTop: 30, width: "90%", alignItems: "center" },
+  largeStepperRow: { flexDirection: "row", alignItems: "center", gap: 30 },
+  circleStepBtn: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: "#1a1a1e",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  hugeNumberInput: {
+    fontSize: 40,
+    color: "#fff",
+    textAlign: "center",
+    fontFamily: "ni",
+  },
+  totalLabel: {
+    fontSize: 10,
+    color: Colors.dark.primary,
+    fontWeight: "700",
+    marginTop: -5,
+  },
+  hugeNumberContainer: { alignItems: "center", minWidth: 80 },
+  linkLargeButton: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    gap: 30,
+    backgroundColor: "#111",
+    borderRadius: 15,
+    padding: 12,
+    gap: 10,
+    borderWidth: 1,
+    borderColor: "#222",
   },
-  circleStepBtn: {
+  linkText: { flex: 1, color: "#fff", fontSize: 14 },
+  buttonRow: {
+    flexDirection: "row",
+    gap: 10,
+    marginTop: 20,
+    paddingBottom: 40,
+  },
+  saveButton: {
+    flex: 1,
+    height: 50,
+    borderRadius: 15,
+    backgroundColor: Colors.dark.primary,
+  },
+  deleteButton: {
     width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: "#1a1a1e",
+    height: 50,
+    borderRadius: 15,
+    backgroundColor: "rgba(255,68,68,0.1)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  actionContainer: { width: "90%", gap: 10, marginTop: 20, paddingBottom: 40 },
+  outlineBtn: {
+    height: 50,
+    borderRadius: 15,
+    borderWidth: 1,
+    borderColor: Colors.dark.primary,
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  outlineBtnText: {
+    color: Colors.dark.primary,
+    marginLeft: 8,
+    fontWeight: "700",
+  },
+  primaryBtn: {
+    height: 50,
+    borderRadius: 15,
+    backgroundColor: Colors.dark.primary,
+  },
+  floatingActionColumn: {
+    position: "absolute",
+    right: -15,
+    top: 10,
+    zIndex: 10,
+    gap: 10,
+  },
+  floatingActionBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     justifyContent: "center",
     alignItems: "center",
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.1)",
   },
-  hugeNumberContainer: {
-    alignItems: "center",
-    minWidth: 100,
-  },
-  hugeNumberInput: {
-    fontSize: 48,
-    fontFamily: "ni",
-    color: "#fff",
-    textAlign: "center",
-    padding: 0,
-    margin: 0,
-  },
-  totalLabel: {
-    fontSize: 12,
-    color: Colors.dark.primary,
-    fontWeight: "700",
-    marginTop: -5,
-  },
-  mangaImageWrapper: {
-    width: 250,
-    height: 350,
-    borderRadius: 25,
-    overflow: "hidden",
-    elevation: 10,
-    shadowColor: "#000",
-    shadowOpacity: 0.5,
-    shadowRadius: 10,
-    backgroundColor: "#1a1a1e",
-  },
-  mangaImage: {
-    width: "100%",
-    height: "100%",
-    borderRadius: 25,
-  },
-  placeholderContainer: {
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  placeholderContent: {
-    alignItems: "center",
-    paddingHorizontal: 20,
-    zIndex: 2,
-  },
-  placeholderText: {
-    color: "rgba(255,255,255,0.4)",
-    fontSize: 20,
-    fontWeight: "800",
-    textAlign: "center",
-    fontFamily: Platform.OS === "ios" ? "Georgia" : "serif",
-    fontStyle: "italic",
-    textTransform: "uppercase",
-    marginTop: 10,
-  },
-  placeholderEdge: {
-    position: "absolute",
-    left: 0,
-    top: 0,
-    bottom: 0,
-    width: 15,
-    backgroundColor: "rgba(255,255,255,0.03)",
-    borderRightWidth: 1,
-    borderRightColor: "rgba(0,0,0,0.2)",
-  },
-  markdown: {
-    body: {
-      color: Colors.dark.mutedForeground,
-      fontSize: 14,
-      lineHeight: 22,
-    },
-    strong: {
-      color: "#ffffff",
-      fontWeight: "bold",
-    },
-    link: {
-      color: Colors.dark.primary,
-      textDecorationLine: "underline",
-    },
-  } as any,
+  markdown: { body: { color: "#aaa", fontSize: 14, lineHeight: 20 } } as any,
 });
