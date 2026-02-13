@@ -165,6 +165,7 @@ export type MangaCategory =
   | "hiatus"
   | "cancelled"
   | "plan-to-read"
+  | "blocked"
   | "favorites";
 
 export type UserFilter =
@@ -174,6 +175,7 @@ export type UserFilter =
   | "hiatus"
   | "cancelled"
   | "plan-to-read"
+  | "blocked"
   | "favorites";
 
 export type UserMangaProgress = {

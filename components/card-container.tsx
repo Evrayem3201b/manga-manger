@@ -1,4 +1,5 @@
 import { Colors } from "@/constants/theme";
+import { useAlert } from "@/context/AlertContext"; // Added
 import { SimpleDisplay } from "@/utils/types";
 import { Octicons } from "@expo/vector-icons";
 import * as FileSystem from "expo-file-system";
@@ -6,7 +7,6 @@ import { router } from "expo-router";
 import { useSQLiteContext } from "expo-sqlite";
 import React, { useEffect, useRef, useState } from "react";
 import {
-  Alert,
   Dimensions,
   FlatList,
   Pressable,
@@ -32,21 +32,20 @@ interface Props {
 
 export default function CardContainer({ mangaSimple, search, style }: Props) {
   const db = useSQLiteContext();
+  const { showAlert } = useAlert(); // Added
 
   const [localManga, setLocalManga] = useState(mangaSimple);
   const [syncingIds, setSyncingIds] = useState<string[]>([]);
   const isSyncingRef = useRef(false);
-  const hasAttemptedSync = useRef(false); // Track if we've already tried syncing this session
+  const hasAttemptedSync = useRef(false);
 
-  // 2. The Trigger: Watch mangaSimple for data
   useEffect(() => {
     if (search || mangaSimple.length === 0 || hasAttemptedSync.current) return;
 
     async function runSyncFlow() {
-      hasAttemptedSync.current = true; // Lock immediately to prevent double-runs
+      hasAttemptedSync.current = true;
 
       try {
-        // Check for the restore flag
         const flag = await db.getFirstAsync<{ value: string }>(
           `SELECT value FROM app_meta WHERE prop = 'needs_cover_sync'`,
         );
@@ -57,15 +56,25 @@ export default function CardContainer({ mangaSimple, search, style }: Props) {
           await db.runAsync(
             `UPDATE app_meta SET value = '0' WHERE prop = 'needs_cover_sync'`,
           );
-          Alert.alert("Library restored", "Covers synced successfully");
+          // Replaced native Alert with custom showAlert (Info style)
+          showAlert({
+            title: "Library restored",
+            message: "Covers synced successfully",
+            type: "success",
+          });
         }
       } catch (e) {
-        Alert.alert("Sync Flow Error", `${e}`);
+        // Replaced native Alert
+        showAlert({
+          title: "Sync Flow Error",
+          message: `${e}`,
+          type: "danger",
+        });
       }
     }
 
     runSyncFlow();
-  }, [mangaSimple, db]); // Runs when manga list arrives or DB changes
+  }, [mangaSimple, db]);
 
   useEffect(() => {
     setLocalManga(mangaSimple);
@@ -77,7 +86,6 @@ export default function CardContainer({ mangaSimple, search, style }: Props) {
     try {
       setSyncingIds((prev) => [...prev, item.id]);
 
-      // Ensure filename is clean
       const destinationFile = new FileSystem.File(coversDir, `${item.id}.jpg`);
 
       const output = await FileSystem.File.downloadFileAsync(
@@ -98,7 +106,6 @@ export default function CardContainer({ mangaSimple, search, style }: Props) {
       );
       return true;
     } catch (e) {
-      // Alert.alert(`Download failed for ${item.name}`, e);
       return false;
     } finally {
       setSyncingIds((prev) => prev.filter((id) => id !== item.id));
@@ -112,7 +119,6 @@ export default function CardContainer({ mangaSimple, search, style }: Props) {
     const failedItems: typeof mangaSimple = [];
 
     try {
-      // Use the standard document path for covers
       const coversDir = new FileSystem.Directory(
         FileSystem.Paths.document,
         "covers",
@@ -125,11 +131,8 @@ export default function CardContainer({ mangaSimple, search, style }: Props) {
       for (const item of mangaSimple) {
         let needsDownload = false;
 
-        // SAFE PATH CHECK:
-        // We check if the file exists physically in the 'covers' folder
         const localFile = new FileSystem.File(coversDir, `${item.id}.jpg`);
 
-        // If the database path is empty OR the physical file is missing
         if (!item.coverUrl?.uri || !localFile.exists) {
           needsDownload = true;
         }
@@ -140,7 +143,6 @@ export default function CardContainer({ mangaSimple, search, style }: Props) {
         }
       }
 
-      // Quick retry for failed items
       if (failedItems.length > 0) {
         await new Promise((resolve) => setTimeout(resolve, 1500));
         for (const item of failedItems) {
@@ -148,7 +150,12 @@ export default function CardContainer({ mangaSimple, search, style }: Props) {
         }
       }
     } catch (err) {
-      Alert.alert("Sync process error", `${err}`);
+      // Replaced native Alert
+      showAlert({
+        title: "Sync process error",
+        message: `${err}`,
+        type: "danger",
+      });
     } finally {
       isSyncingRef.current = false;
     }

@@ -143,6 +143,8 @@ function Card({
   );
 }
 
+Card.displayName = "Card";
+
 export default memo(Card);
 
 const styles = StyleSheet.create({

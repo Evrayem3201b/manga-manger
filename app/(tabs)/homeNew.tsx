@@ -1,6 +1,7 @@
 import CardContainer from "@/components/card-container";
 import ScreenHug from "@/components/ScreenHug";
 import { Colors } from "@/constants/theme";
+import { useAlert } from "@/context/AlertContext"; // Added
 import { MangaDB } from "@/utils/types";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "expo-router";
@@ -8,7 +9,6 @@ import { useSQLiteContext } from "expo-sqlite";
 import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   Modal,
   Pressable,
   ScrollView,
@@ -20,6 +20,7 @@ import {
 
 export default function Home() {
   const db = useSQLiteContext();
+  const { showAlert } = useAlert(); // Initialize
   const [data, setData] = useState<MangaDB[]>([]);
   const [localQuery, setLocalQuery] = useState("");
   const [showFilters, setShowFilters] = useState(false);
@@ -31,59 +32,55 @@ export default function Home() {
   const activeFilterCount =
     (selectedStatus !== "all" ? 1 : 0) + selectedGenres.length;
 
-  // --- MIGRATIONS ---
   const runMigrations = useCallback(async () => {
     try {
       const tableInfo: any = await db.getAllAsync(`PRAGMA table_info(manga)`);
       const appMetaInfo: any = await db.getAllAsync(
         `PRAGMA table_info(app_meta)`,
       );
+
       const columns = tableInfo.map((c: any) => c.name);
       const metaColumns = appMetaInfo.map((c: any) => c.name);
-      if (!columns.includes("is_pinned")) {
+
+      if (!columns.includes("is_pinned"))
         await db.runAsync(
           `ALTER TABLE manga ADD COLUMN is_pinned INTEGER DEFAULT 0`,
         );
-      }
-      if (!columns.includes("is_adult")) {
+      if (!columns.includes("is_adult"))
         await db.runAsync(
           `ALTER TABLE manga ADD COLUMN is_adult BOOLEAN DEFAULT FALSE`,
         );
-      }
-      if (!columns.includes("queue_order")) {
+      if (!columns.includes("queue_order"))
         await db.runAsync(
           `ALTER TABLE manga ADD COLUMN queue_order INTEGER DEFAULT 0`,
         );
-      }
-      if (!metaColumns.includes("prop")) {
+
+      if (!metaColumns.includes("prop"))
         await db.runAsync(`ALTER TABLE app_meta ADD COLUMN prop TEXT`);
-      }
-      if (!metaColumns.includes("value")) {
+      if (!metaColumns.includes("value"))
         await db.runAsync(
           `ALTER TABLE app_meta ADD COLUMN value TEXT DEFAULT '0'`,
         );
-      }
-      if (!metaColumns.includes("latest_sync")) {
+      if (!metaColumns.includes("latest_sync"))
         await db.runAsync(
           `ALTER TABLE app_meta ADD COLUMN latest_sync TEXT DEFAULT NULL`,
         );
-      }
+
       return true;
     } catch (e) {
-      Alert.alert("Migration Error", `${e}`);
+      showAlert({
+        title: "Migration Error",
+        message: "Failed to update database schema.",
+        type: "danger",
+      });
       return false;
     }
-  }, [db]);
+  }, [db, showAlert]);
 
-  // --- DYNAMIC GENRE FETCHING ---
   const getGenres = useCallback(
     async (status: string | null) => {
       try {
-        let sql = `
-        SELECT DISTINCT g.genre 
-        FROM manga_genres g
-        JOIN manga m ON g.manga_id = m.id
-      `;
+        let sql = `SELECT DISTINCT g.genre FROM manga_genres g JOIN manga m ON g.manga_id = m.id`;
         let params: any[] = [];
 
         if (status && status !== "all") {
@@ -96,30 +93,25 @@ export default function Home() {
             params.push(status);
           }
         }
-
         sql += ` ORDER BY g.genre ASC`;
 
         const result: { genre: string }[] = await db.getAllAsync(sql, params);
         const validGenres = result.map((r) => r.genre);
         setAvailableGenres(validGenres);
-
-        // Cleanup selected genres if they are no longer in the valid list for this status
         setSelectedGenres((prev) =>
           prev.filter((g) => validGenres.includes(g)),
         );
       } catch (e) {
-        Alert.alert("Genre fetch error", `${e}`);
+        console.error(e);
       }
     },
     [db],
   );
 
-  // --- FILTERED FETCH ---
   const fetchFilteredManga = useCallback(async () => {
     if (isMigrating) return;
     try {
       let params: any[] = [`%${localQuery}%`];
-
       let sql = `
         SELECT m.*, 
           EXISTS(SELECT 1 FROM favorites f WHERE f.manga_id = m.id) AS is_favorite,
@@ -148,15 +140,17 @@ export default function Home() {
       }
 
       sql += ` ORDER BY m.updated_at DESC`;
-
       const fetchedData: MangaDB[] = await db.getAllAsync(sql, params);
       setData(fetchedData);
     } catch (e) {
-      Alert.alert("Fetch Error", `${e}`);
+      showAlert({
+        title: "Fetch Error",
+        message: "Failed to load your library.",
+        type: "danger",
+      });
     }
-  }, [selectedStatus, selectedGenres, localQuery, isMigrating, db]);
+  }, [selectedStatus, selectedGenres, localQuery, isMigrating, db, showAlert]);
 
-  // Initial load
   useEffect(() => {
     async function init() {
       const success = await runMigrations();
@@ -168,11 +162,8 @@ export default function Home() {
     init();
   }, [runMigrations]);
 
-  // Sync genres when status changes
   useEffect(() => {
-    if (!isMigrating) {
-      getGenres(selectedStatus);
-    }
+    if (!isMigrating) getGenres(selectedStatus);
   }, [selectedStatus, isMigrating, getGenres]);
 
   useFocusEffect(
@@ -205,7 +196,6 @@ export default function Home() {
             onChangeText={setLocalQuery}
           />
         </View>
-
         <Pressable
           style={[
             styles.filterBtn,
@@ -245,7 +235,6 @@ export default function Home() {
                 <Ionicons name="close" size={24} color="#555" />
               </Pressable>
             </View>
-
             <ScrollView showsVerticalScrollIndicator={false}>
               <Text style={styles.label}>Status & Lists</Text>
               <View style={styles.chipRow}>
@@ -276,7 +265,6 @@ export default function Home() {
                   </Pressable>
                 ))}
               </View>
-
               <Text style={[styles.label, { marginTop: 25 }]}>
                 Genres ({availableGenres.length})
               </Text>
@@ -312,7 +300,6 @@ export default function Home() {
                 )}
               </View>
             </ScrollView>
-
             <View style={styles.modalFooter}>
               <Pressable
                 style={styles.applyBtn}

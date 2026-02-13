@@ -1,4 +1,5 @@
 import { Colors } from "@/constants/theme";
+import { useAlert } from "@/context/AlertContext"; // Import our new hook
 import { getBadgeColor as BadgeData } from "@/utils/BadgeData";
 import { getStatusFromName } from "@/utils/getStatus";
 import { MangaDB, SimpleDisplay, Tag as TagType } from "@/utils/types";
@@ -9,7 +10,6 @@ import { useSQLiteContext } from "expo-sqlite";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   Image,
   Linking,
   Platform,
@@ -29,6 +29,7 @@ import { Button } from "./ui/button";
 const INITIAL_VISIBLE_TAGS = 5;
 
 export default function MangaTemplate({ id }: { id: string }) {
+  const { showAlert } = useAlert(); // Initialize Alert
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [genres, setGenres] = useState<TagType[] | null>(null);
   const [data, setData] = useState<
@@ -59,13 +60,10 @@ export default function MangaTemplate({ id }: { id: string }) {
   useEffect(() => {
     async function fetchManga() {
       try {
-        // 1. Get Manga Details
         const mangaRecord: MangaDB = await db.getFirstAsync<any>(
           "SELECT * FROM manga WHERE id = ?",
           [id],
         );
-        // console.log("Manga Record:", mangaRecord);
-        // 2. Get Genres
         const genresRecords = await db.getAllAsync<any>(
           "SELECT * FROM manga_genres WHERE manga_id = ?",
           [id],
@@ -96,26 +94,20 @@ export default function MangaTemplate({ id }: { id: string }) {
             rating: String(mangaRecord.rating),
             currentChap: mangaRecord.current_chap,
             readingLink: mangaRecord.reading_link,
-            isAdult: mangaRecord.is_adult === 1 ? true : false,
+            isAdult: mangaRecord.is_adult === 1,
             coverOnlineLink: mangaRecord.cover_online_link,
           });
 
           setQuery(String(mangaRecord.current_chap || "0"));
-
-          // Map database genres to match the API structure used in the Tag loop
           setGenres(genresRecords);
           setReadingLink(mangaRecord.reading_link || "");
-          // console.log("Genres Records:", genresRecords);
-          // console.log(
-          //   "Manga details loaded successfully. " +
-          //     favouriteRecord +
-          //     " " +
-          //     planToReadRecord,
-          // );
         }
       } catch (error) {
-        // Alert.alert("Error loading manga from DB:", error);
-        Alert.alert("Error", "Failed to load manga details.");
+        showAlert({
+          title: "Fetch Error",
+          message: "Failed to load manga details from the database.",
+          type: "danger",
+        });
       } finally {
         setIsLoading(false);
       }
@@ -123,23 +115,9 @@ export default function MangaTemplate({ id }: { id: string }) {
     fetchManga();
   }, [id]);
 
-  // useEffect(() => {
-  //   async function handleImageDownload() {
-  //     console.log(
-  //       await db.getFirstAsync(`SELECT * FROM manga WHERE id = ?`, [id]),
-  //     );
-  //   }
-  //   handleImageDownload();
-  // }, []);
-
-  if (isLoading) {
-    return <ActivityIndicator size="large" color={Colors.dark.text} />;
-  }
-
   const visibleGenres = expanded
     ? genres
     : genres?.slice(0, INITIAL_VISIBLE_TAGS);
-
   const hiddenCount =
     genres && genres.length > INITIAL_VISIBLE_TAGS
       ? genres.length - INITIAL_VISIBLE_TAGS
@@ -147,26 +125,109 @@ export default function MangaTemplate({ id }: { id: string }) {
 
   async function saveProgress() {
     if (!data) return;
-
     try {
       const newChap = parseInt(query) || 0;
       await db.runAsync(
-        `
-      UPDATE manga
-      SET
-        current_chap = ?,
-        updated_at = ?,
-        reading_link = ?
-      WHERE id = ?
-      `,
+        `UPDATE manga SET current_chap = ?, updated_at = ?, reading_link = ? WHERE id = ?`,
         [newChap, Date.now(), readingLink, id],
       );
-      Alert.alert("Success", "Progress saved!");
+      showAlert({
+        title: "Progress Saved",
+        message: `Successfully updated to Chapter ${newChap}`,
+        type: "success",
+      });
     } catch (e) {
-      // Alert.alert(e);
-      Alert.alert("Error", `Failed to save progress: ${e}`);
+      showAlert({
+        title: "Save Failed",
+        message: "Could not update your progress. Please try again.",
+        type: "danger",
+      });
     }
   }
+
+  async function deleteManga() {
+    try {
+      await db.runAsync(`DELETE FROM manga WHERE id = ?`, [id]);
+      router.replace("/(tabs)/homeNew");
+    } catch (e) {
+      showAlert({
+        title: "Error",
+        message: "Failed to remove manga from library.",
+        type: "danger",
+      });
+    }
+  }
+
+  // --- BLOCK FUNCTIONALITY ---
+  const handleBlockManga = () => {
+    showAlert({
+      title: "Block Manga?",
+      message: `"${data?.name}" will be added to your blacklist and hidden from all results.`,
+      type: "danger",
+      confirmText: "Block",
+      onConfirm: async () => {
+        if (!data) return;
+        try {
+          await db.runAsync(
+            `INSERT INTO blocked_manga (manga_id, name, manga_image) VALUES (?, ?, ?)`,
+            [id, data?.name, data?.coverUrl?.uri],
+          );
+          // After blocking, delete from library and go home
+          await db.runAsync("DELETE FROM manga WHERE id = ?", [id]);
+          router.replace("/(tabs)/homeNew");
+        } catch (e) {
+          console.error(e);
+        }
+      },
+    });
+  };
+
+  const handleLinkOpen = async () => {
+    const supported = await Linking.canOpenURL(readingLink);
+    if (supported) {
+      await Linking.openURL(readingLink);
+    } else {
+      showAlert({
+        title: "Invalid Link",
+        message: "The URL provided is not valid or cannot be opened.",
+        type: "info",
+      });
+    }
+  };
+
+  const toggleFavorite = async () => {
+    const newValue = !isFavorite;
+    setIsFavorite(newValue);
+    try {
+      if (newValue) {
+        await db.runAsync(
+          "INSERT OR REPLACE INTO favorites (manga_id, added_at) VALUES (?, ?)",
+          [id, Date.now()],
+        );
+      } else {
+        await db.runAsync("DELETE FROM favorites WHERE manga_id = ?", [id]);
+      }
+    } catch (e) {
+      setIsFavorite(!newValue);
+    }
+  };
+
+  const togglePlanToRead = async () => {
+    const newValue = !isPlanToRead;
+    setIsPlanToRead(newValue);
+    try {
+      if (newValue) {
+        await db.runAsync(
+          "INSERT OR REPLACE INTO plan_to_read (manga_id, added_at) VALUES (?, ?)",
+          [id, Date.now()],
+        );
+      } else {
+        await db.runAsync("DELETE FROM plan_to_read WHERE manga_id = ?", [id]);
+      }
+    } catch (e) {
+      setIsPlanToRead(!newValue);
+    }
+  };
 
   if (isLoading) {
     return (
@@ -178,127 +239,24 @@ export default function MangaTemplate({ id }: { id: string }) {
     );
   }
 
-  async function deleteManga() {
-    try {
-      await db.runAsync(`DELETE FROM manga WHERE id = ?`, [id]);
-      // Alert.alert("Deleted", "Manga removed from your library.");
-      // Optionally, navigate back or refresh the list
-      router.replace("/(tabs)/homeNew");
-    } catch (e) {
-      Alert.alert("Error", "Failed to delete manga.");
-    }
-  }
-
-  const handleLinkOpen = async () => {
-    // Check if the device can open the URL (optional but good practice)
-    const supported = await Linking.canOpenURL(readingLink);
-
-    if (supported) {
-      // Open the URL in the device's default browser
-      await Linking.openURL(readingLink);
-    } else {
-      Alert.alert(`Don't know how to open this URL: ${readingLink}`);
-    }
-  };
-
-  const toggleFavorite = async () => {
-    const newValue = !isFavorite;
-    setIsFavorite(newValue); // Update UI immediately
-
-    try {
-      if (newValue) {
-        await db.runAsync(
-          "INSERT OR REPLACE INTO favorites (manga_id, added_at) VALUES (?, ?)",
-          [id, Date.now()],
-        );
-      } else {
-        await db.runAsync("DELETE FROM favorites WHERE manga_id = ?", [id]);
-      }
-    } catch (e) {
-      // Alert.alert("Failed to update favorites"+ e);
-      Alert.alert("Error", "Failed to update favorites.");
-      // Rollback UI if DB fails
-      setIsFavorite(!newValue);
-    }
-  };
-
-  const togglePlanToRead = async () => {
-    const newValue = !isPlanToRead;
-    setIsPlanToRead(newValue); // Update UI immediately
-
-    try {
-      if (newValue) {
-        await db.runAsync(
-          "INSERT OR REPLACE INTO plan_to_read (manga_id, added_at) VALUES (?, ?)",
-          [id, Date.now()],
-        );
-      } else {
-        await db.runAsync("DELETE FROM plan_to_read WHERE manga_id = ?", [id]);
-      }
-    } catch (e) {
-      // Alert.alert("Failed to update plan to read"+ e);
-      Alert.alert("Error", "Failed to update plan to read list.");
-      // Rollback UI if DB fails
-      setIsPlanToRead(!newValue);
-    }
-  };
-
-  const toggleQueue = async () => {
-    try {
-      if (inQueue) {
-        await db.runAsync("UPDATE manga SET queue_order = 0 WHERE id = ?", [
-          id,
-        ]);
-        setInQueue(false);
-      } else {
-        const maxOrder: any = await db.getFirstAsync(
-          "SELECT MAX(queue_order) as maxO FROM manga",
-        );
-        const nextOrder = (maxOrder?.maxO || 0) + 1;
-        await db.runAsync("UPDATE manga SET queue_order = ? WHERE id = ?", [
-          nextOrder,
-          id,
-        ]);
-        setInQueue(true);
-      }
-    } catch (e) {
-      Alert.alert("Error", "Failed to update queue.");
-    }
-  };
-  const togglePin = async () => {
-    try {
-      const pinnedCount: any = await db.getFirstAsync(
-        "SELECT COUNT(*) as count FROM manga WHERE is_pinned = 1",
-      );
-      if (!isPinned && pinnedCount.count >= 5) {
-        Alert.alert("Limit Reached", "You can only pin up to 5 manga.");
-        return;
-      }
-      const newValue = !isPinned;
-      await db.runAsync("UPDATE manga SET is_pinned = ? WHERE id = ?", [
-        newValue ? 1 : 0,
-        id,
-      ]);
-      setIsPinned(newValue);
-    } catch (e) {
-      Alert.alert("Error", "Failed to update pin.");
-    }
-  };
-
   return (
     <ScreenHug
       title={""}
-      style={{
-        paddingTop: 30,
-        alignItems: "center",
-        marginTop: -10,
-      }}
+      style={{ paddingTop: 30, alignItems: "center", marginTop: -10 }}
       scroll={true}
     >
       <View style={{ position: "relative" }}>
         <Badge status={getStatusFromName(data?.status || "ongoing")} />
-        {/* REPLACED: NEW CONTROL HUB */}
+
         <View style={styles.floatingActionColumn}>
+          {/* Block Button */}
+          <Pressable
+            style={[styles.floatingActionBtn, { backgroundColor: "#111" }]}
+            onPress={handleBlockManga}
+          >
+            <Ionicons name="ban-outline" size={20} color="#ff4444" />
+          </Pressable>
+
           <Pressable
             style={[
               styles.floatingActionBtn,
@@ -306,7 +264,7 @@ export default function MangaTemplate({ id }: { id: string }) {
                 backgroundColor: `${BadgeData("favorites")?.badgeBackgroundColor}`,
               },
             ]}
-            onPress={() => toggleFavorite()}
+            onPress={toggleFavorite}
           >
             <Ionicons
               name={isFavorite ? "heart" : "heart-outline"}
@@ -314,6 +272,7 @@ export default function MangaTemplate({ id }: { id: string }) {
               color={isFavorite ? "#ff4444" : "#fff"}
             />
           </Pressable>
+
           <Pressable
             style={[
               styles.floatingActionBtn,
@@ -321,7 +280,7 @@ export default function MangaTemplate({ id }: { id: string }) {
                 backgroundColor: `${BadgeData("plan-to-read")?.badgeBackgroundColor}`,
               },
             ]}
-            onPress={() => togglePlanToRead()}
+            onPress={togglePlanToRead}
           >
             <Ionicons
               name={isPlanToRead ? "bookmark" : "bookmark-outline"}
@@ -342,7 +301,6 @@ export default function MangaTemplate({ id }: { id: string }) {
               style={styles.mangaImage}
             />
           ) : (
-            /* --- BEAUTIFUL PLACEHOLDER --- */
             <View style={[styles.mangaImage, styles.placeholderContainer]}>
               <LinearGradient
                 colors={["#232526", "#414345"]}
@@ -370,83 +328,25 @@ export default function MangaTemplate({ id }: { id: string }) {
         </View>
       </View>
 
-      <Text
-        style={{
-          marginTop: 20,
-          fontSize: 40,
-          textAlign: "center",
-          fontFamily: "ni",
-          color: Colors.dark.text,
-        }}
-        selectable
-      >
+      <Text style={styles.mangaTitle} selectable>
         {data?.name}
       </Text>
 
-      <View
-        style={{
-          flexWrap: "wrap",
-          flexDirection: "row",
-          gap: 6,
-          marginTop: 20,
-          width: "80%",
-          justifyContent: "center",
-        }}
-      >
-        {visibleGenres?.map((tag: any, index: number) => {
-          const genre = tag.genre;
-          return <Tag title={genre} key={index} />;
-        })}
-
-        {/* 🔥 SHOW MORE / LESS BUTTON */}
-        {!expanded && hiddenCount > 0 && (
-          <Pressable onPress={() => setExpanded(true)}>
-            <View
-              style={{
-                paddingHorizontal: 12,
-                paddingVertical: 6,
-                borderRadius: 999,
-                borderWidth: 1,
-                borderColor: "rgba(255,255,255,0.25)",
-              }}
-            >
-              <Text
-                style={{
-                  color: Colors.dark.text,
-                  fontSize: 13,
-                  opacity: 0.85,
-                }}
-              >
-                +{hiddenCount} more
-              </Text>
-            </View>
-          </Pressable>
-        )}
-
-        {expanded && (
-          <Pressable onPress={() => setExpanded(false)}>
-            <View
-              style={{
-                paddingHorizontal: 12,
-                paddingVertical: 6,
-                borderRadius: 999,
-                borderWidth: 1,
-                borderColor: "rgba(255,255,255,0.25)",
-              }}
-            >
-              <Text
-                style={{
-                  color: Colors.dark.text,
-                  fontSize: 13,
-                  opacity: 0.85,
-                }}
-              >
-                Show less
+      <View style={styles.genreRow}>
+        {visibleGenres?.map((tag: any, index: number) => (
+          <Tag title={tag.genre} key={index} />
+        ))}
+        {hiddenCount > 0 && (
+          <Pressable onPress={() => setExpanded(!expanded)}>
+            <View style={styles.moreTag}>
+              <Text style={styles.moreTagText}>
+                {expanded ? "Show less" : `+${hiddenCount} more`}
               </Text>
             </View>
           </Pressable>
         )}
       </View>
+
       <View style={styles.sourceContainer}>
         <Pressable
           onPress={() => Linking.openURL(`https://mangadex.org/title/${id}`)}
@@ -475,21 +375,19 @@ export default function MangaTemplate({ id }: { id: string }) {
           <Markdown
             style={styles.markdown}
             onLinkPress={(url) => {
-              // We handle the promise internally using .catch
-              Linking.openURL(url).catch((err) =>
-                Alert.alert("Error", "Could not open link"),
+              Linking.openURL(url).catch(() =>
+                showAlert({
+                  title: "Error",
+                  message: "Could not open link",
+                  type: "danger",
+                }),
               );
-
-              // Return true to indicate the link was handled,
-              // or false to let the default handler run.
-              // Most users prefer returning false here.
               return false;
             }}
           >
             {data?.description || "No description available."}
           </Markdown>
         </View>
-
         <Pressable
           onPress={() => setExpandedText(!expandedText)}
           style={{ paddingVertical: 8 }}
@@ -499,10 +397,9 @@ export default function MangaTemplate({ id }: { id: string }) {
           </ThemedText>
         </Pressable>
       </View>
-      {/* --- CHAPTER SECTION --- */}
+
       <View style={{ marginTop: 40, width: "90%", alignItems: "center" }}>
         <ThemedText style={styles.sectionTitle}>Current Progress</ThemedText>
-
         <View style={styles.largeStepperRow}>
           <Pressable
             style={styles.circleStepBtn}
@@ -512,7 +409,6 @@ export default function MangaTemplate({ id }: { id: string }) {
           >
             <Ionicons name="remove" size={28} color="#fff" />
           </Pressable>
-
           <View style={styles.hugeNumberContainer}>
             <TextInput
               keyboardType="numeric"
@@ -523,7 +419,6 @@ export default function MangaTemplate({ id }: { id: string }) {
             />
             <Text style={styles.totalLabel}>OF {data?.totalChap || "?"}</Text>
           </View>
-
           <Pressable
             style={styles.circleStepBtn}
             onPress={() => setQuery(String(parseInt(query || "0") + 1))}
@@ -533,16 +428,11 @@ export default function MangaTemplate({ id }: { id: string }) {
         </View>
       </View>
 
-      {/* --- READING LINK SECTION --- */}
       <ThemedText style={[styles.sectionTitle, { marginTop: 50 }]}>
         Reading Source
       </ThemedText>
       <View style={styles.linkLargeButton}>
-        {/* Left Icon - Static */}
-
         <Ionicons name="link" size={20} color={Colors.dark.primary} />
-
-        {/* Middle - Editable Text Area */}
         <TextInput
           placeholder="Paste reading link..."
           placeholderTextColor="#444"
@@ -552,8 +442,6 @@ export default function MangaTemplate({ id }: { id: string }) {
           autoCapitalize="none"
           autoCorrect={false}
         />
-
-        {/* Right Icon - The Action Button */}
         <Pressable
           onPress={handleLinkOpen}
           style={({ pressed }) => [
@@ -565,38 +453,25 @@ export default function MangaTemplate({ id }: { id: string }) {
         </Pressable>
       </View>
 
-      {/* Button Container */}
-
-      <View
-        style={{
-          flexDirection: "row",
-
-          alignItems: "center",
-
-          width: "100%",
-
-          gap: 12,
-
-          marginTop: 20,
-
-          marginBottom: 24,
-        }}
-      >
+      <View style={styles.bottomActions}>
         <Button
           style={styles.saveButton}
           textStyle={styles.saveButtonText}
-          onPress={() => saveProgress()}
+          onPress={saveProgress}
         >
           Save Progress
         </Button>
-
         <Button
           style={styles.deleteButton}
           onPress={() =>
-            Alert.alert("Delete", "Remove from library?", [
-              { text: "Cancel", style: "cancel" },
-              { text: "Delete", style: "destructive", onPress: deleteManga },
-            ])
+            showAlert({
+              title: "Remove Manga?",
+              message:
+                "Are you sure you want to delete this from your library?",
+              type: "danger",
+              confirmText: "Delete",
+              onConfirm: deleteManga,
+            })
           }
         >
           <Octicons name="trash" size={24} color="rgba(255, 68, 68, 0.85)" />
@@ -605,7 +480,6 @@ export default function MangaTemplate({ id }: { id: string }) {
     </ScreenHug>
   );
 }
-
 const styles = StyleSheet.create({
   searchBox: {
     flexDirection: "row",
@@ -873,10 +747,41 @@ const styles = StyleSheet.create({
     borderRightWidth: 1,
     borderRightColor: "rgba(0,0,0,0.2)",
   },
+  genreRow: {
+    flexWrap: "wrap",
+    flexDirection: "row",
+    gap: 6,
+    marginTop: 20,
+    width: "80%",
+    justifyContent: "center",
+  },
+  moreTag: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.25)",
+  },
+  moreTagText: { color: Colors.dark.text, fontSize: 13, opacity: 0.85 },
+  mangaTitle: {
+    marginTop: 20,
+    fontSize: 40,
+    textAlign: "center",
+    fontFamily: "ni",
+    color: Colors.dark.text,
+  },
+  bottomActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    width: "100%",
+    gap: 12,
+    marginTop: 20,
+    marginBottom: 24,
+  },
 
   markdown: {
     body: {
-      color: Colors.dark.mutedForeground,
+      color: "#aaa",
       fontSize: 14,
       lineHeight: 22,
       fontFamily: "poppins",

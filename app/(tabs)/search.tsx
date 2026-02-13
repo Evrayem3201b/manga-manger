@@ -22,10 +22,13 @@ export default function Search() {
   const [debounced, setDebounced] = useState("");
   const [showFilters, setShowFilters] = useState(false);
   const [isFocused, setIsFocused] = useState(false);
-  const [page, setPage] = useState(0); // Pagination state
+  const [page, setPage] = useState(0);
   const [recentSearches, setRecentSearches] = useState<
     { query: string; result_ids: string }[]
   >([]);
+
+  // NEW: Blocked Manga State
+  const [blockedIds, setBlockedIds] = useState<Set<string>>(new Set());
 
   // Filter States
   const [selectedStatus, setSelectedStatus] = useState<string | null>(null);
@@ -39,19 +42,62 @@ export default function Search() {
   );
   const db = useSQLiteContext();
 
-  // Calculate total pages
   const totalPages = useMemo(() => Math.ceil((total || 0) / LIMIT), [total]);
 
+  // --- LOAD DATA ON FOCUS ---
   useFocusEffect(
     useCallback(() => {
       loadRecentSearches();
+      loadBlockedManga(); // Fetch blocked list whenever screen comes into focus
     }, []),
   );
 
+  const loadBlockedManga = async () => {
+    try {
+      const blocked: { manga_id: string }[] = await db.getAllAsync(
+        `SELECT manga_id FROM blocked_manga`,
+      );
+      setBlockedIds(new Set(blocked.map((b) => b.manga_id)));
+    } catch (e) {
+      console.error("Failed to load blocked manga", e);
+    }
+  };
+
+  const loadRecentSearches = async () => {
+    try {
+      const searchCache: { query: string; result_ids: string }[] =
+        await db.getAllAsync(
+          `SELECT query, result_ids FROM search_cache ORDER BY created_at DESC`,
+        );
+      if (searchCache) setRecentSearches(searchCache);
+    } catch (e) {
+      console.error("Failed to load searches", e);
+    }
+  };
+
+  // --- FILTERING LOGIC ---
+  const filteredResults = useMemo(() => {
+    return results.filter((manga) => {
+      // 1. Check if Blocked (The "Secret" Filter)
+      if (blockedIds.has(manga.id)) return false;
+
+      // 2. Check Publication Status
+      const matchStatus = !selectedStatus || manga.status === selectedStatus;
+
+      // 3. Check Genres
+      const matchGenres =
+        selectedGenres.length === 0 ||
+        selectedGenres.every((g) => manga.genres?.includes(g));
+
+      return matchStatus && matchGenres;
+    });
+  }, [results, selectedStatus, selectedGenres, blockedIds]);
+
+  // --- SEARCH DEBOUNCE & SAVE ---
   useEffect(() => {
     const t = setTimeout(() => {
       setDebounced(query);
-      setPage(0); // Reset pagination to 0 on every new query
+      setPage(0);
       const trimmed = query.trim();
 
       const lastSearch = recentSearches[0]?.query;
@@ -65,18 +111,6 @@ export default function Search() {
 
     return () => clearTimeout(t);
   }, [query]);
-
-  const loadRecentSearches = async () => {
-    try {
-      const searchCache: { query: string; result_ids: string }[] =
-        await db.getAllAsync(
-          `SELECT query, result_ids FROM search_cache ORDER BY created_at DESC`,
-        );
-      if (searchCache) setRecentSearches(searchCache);
-    } catch (e) {
-      console.error("Failed to load searches", e);
-    }
-  };
 
   const saveSearch = async (term: string) => {
     try {
@@ -110,22 +144,12 @@ export default function Search() {
   };
 
   const availableGenres = useMemo(() => {
-    const genres = new Set<string>();
+    const genresSet = new Set<string>();
     results.forEach((manga) => {
-      manga.genres?.forEach((g) => genres.add(g));
+      manga.genres?.forEach((g) => genresSet.add(g));
     });
-    return Array.from(genres).sort();
+    return Array.from(genresSet).sort();
   }, [results]);
-
-  const filteredResults = useMemo(() => {
-    return results.filter((manga) => {
-      const matchStatus = !selectedStatus || manga.status === selectedStatus;
-      const matchGenres =
-        selectedGenres.length === 0 ||
-        selectedGenres.every((g) => manga.genres.includes(g));
-      return matchStatus && matchGenres;
-    });
-  }, [results, selectedStatus, selectedGenres]);
 
   const toggleGenre = (genre: string) => {
     setSelectedGenres((prev) =>
@@ -271,7 +295,9 @@ export default function Search() {
           </>
         )}
 
+        {/* Modal remains the same */}
         <Modal visible={showFilters} animationType="slide" transparent>
+          {/* ... modal content ... */}
           <View style={styles.modalOverlay}>
             <View style={styles.modalContent}>
               <View style={styles.modalHeader}>
@@ -375,6 +401,7 @@ export default function Search() {
 }
 
 const styles = StyleSheet.create({
+  // ... your existing styles ...
   container: { flex: 1, paddingTop: 10 },
   searchRow: { flexDirection: "row", gap: 10, marginBottom: 15 },
   searchBox: {

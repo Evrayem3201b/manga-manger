@@ -1,4 +1,5 @@
 import { Colors } from "@/constants/theme";
+import { useAlert } from "@/context/AlertContext"; // Added
 import { getBadgeColor as BadgeData } from "@/utils/BadgeData";
 import { getStatusFromName } from "@/utils/getStatus";
 import { MangaCategory } from "@/utils/types";
@@ -11,7 +12,6 @@ import { useSQLiteContext } from "expo-sqlite";
 import React, { useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   Image,
   KeyboardAvoidingView,
   Linking,
@@ -29,9 +29,8 @@ import Tag from "./tag";
 import { ThemedText } from "./themed-text";
 import { Button } from "./ui/button";
 
-const INITIAL_VISIBLE_TAGS = 5;
-
 export default function AddMangaTemplate() {
+  const { showAlert } = useAlert(); // Initialize
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [currentChap, setCurrentChap] = useState<number>(0);
   const [totalChap, setTotalChap] = useState<number | null>(0);
@@ -50,7 +49,6 @@ export default function AddMangaTemplate() {
   const db = useSQLiteContext();
   const router = useRouter();
 
-  // Generate a clean ID
   const mangaId = `${mangaName.replace(/\s+/g, "-").toLowerCase()}-${Date.now()}`;
 
   async function pickMangaImage() {
@@ -64,33 +62,41 @@ export default function AddMangaTemplate() {
     try {
       const asset = result.assets[0];
       const imageDir = new Directory(Paths.document, "covers");
-      if (!imageDir.exists) {
-        await imageDir.create();
-      }
+      if (!imageDir.exists) await imageDir.create();
+
       const mangaImageFile = new File(imageDir.uri, `${mangaId}.jpg`);
-      if (mangaImageFile.exists) {
-        mangaImageFile.delete();
-      }
+      if (mangaImageFile.exists) mangaImageFile.delete();
+
       await new File(asset.uri).copy(mangaImageFile);
       setMangaImagePath(mangaImageFile.uri);
-      Alert.alert("Success", "mangaImage updated!");
+      showAlert({
+        title: "Success",
+        message: "Manga cover updated!",
+        type: "success",
+      });
     } catch (e) {
-      Alert.alert("Error", "Failed to save image." + e);
+      showAlert({
+        title: "Error",
+        message: "Failed to save image.",
+        type: "danger",
+      });
     }
   }
 
   async function handleSubmitManga() {
     if (!mangaName.trim()) {
-      Alert.alert("Missing Name", "Please enter a manga title.");
+      showAlert({
+        title: "Missing Name",
+        message: "Please enter a manga title.",
+        type: "info",
+      });
       return;
     }
 
     try {
       setIsLoading(true);
       await db.withTransactionAsync(async () => {
-        // SQLite doesn't have Boolean; we use 1 for true, 0 for false
         const adultVal = isAdult ? 1 : 0;
-
         await db.runAsync(
           `INSERT OR REPLACE INTO manga (id, name, description, cover_url, cover_online_link, status, total_chap, current_chap, is_adult, created_at, updated_at)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -109,7 +115,6 @@ export default function AddMangaTemplate() {
           ],
         );
 
-        // Clear and Insert genres
         await db.runAsync(`DELETE FROM manga_genres WHERE manga_id = ?`, [
           mangaId,
         ]);
@@ -121,12 +126,18 @@ export default function AddMangaTemplate() {
         }
       });
 
-      Alert.alert("Success", "Manga added to library", [
-        { text: "OK", onPress: () => router.back() },
-      ]);
+      showAlert({
+        title: "Success",
+        message: "Manga added to library",
+        type: "success",
+        onConfirm: () => router.back(),
+      });
     } catch (e) {
-      Alert.alert(e);
-      Alert.alert("Database Error", "Check console for logs.");
+      showAlert({
+        title: "Database Error",
+        message: "Failed to save manga to library.",
+        type: "danger",
+      });
     } finally {
       setIsLoading(false);
     }
@@ -149,7 +160,11 @@ export default function AddMangaTemplate() {
     try {
       await Linking.openURL(readingLink);
     } catch (e) {
-      Alert.alert("Invalid URL", "Please provide a valid web link.");
+      showAlert({
+        title: "Invalid URL",
+        message: "Please provide a valid web link.",
+        type: "info",
+      });
     }
   };
 
@@ -171,17 +186,15 @@ export default function AddMangaTemplate() {
 
   return (
     <ScreenHug title="" style={styles.container} scroll={true}>
-      {/* --- COVER SECTION --- */}
       <View style={styles.imageContainer}>
         <Badge status={getStatusFromName(status)} />
         <View style={styles.mangaImageWrapper}>
           {mangaImagePath ? (
             <Image source={{ uri: mangaImagePath }} style={styles.mangaImage} />
           ) : (
-            /* --- BEAUTIFUL PLACEHOLDER --- */
             <View style={[styles.mangaImage, styles.placeholderContainer]}>
               <LinearGradient
-                colors={["#232526", "#414345"]} // Deep slate gradient
+                colors={["#232526", "#414345"]}
                 style={StyleSheet.absoluteFill}
               />
               <View style={styles.placeholderContent}>
@@ -195,26 +208,21 @@ export default function AddMangaTemplate() {
                   {mangaName || "Manga Title"}
                 </Text>
               </View>
-              {/* Subtle decorative edge */}
               <View style={styles.placeholderEdge} />
             </View>
           )}
-
-          {/* Subtle Overlay Gradient for all covers */}
           <LinearGradient
             colors={["rgba(0,0,0,0.6)", "transparent"]}
             start={{ x: 0.5, y: 1 }}
             end={{ x: 0.5, y: 0.6 }}
             style={StyleSheet.absoluteFill}
           />
-
           <Pressable style={styles.imageEditBtn} onPress={pickMangaImage}>
             <Ionicons name="camera" size={22} color="#fff" />
           </Pressable>
         </View>
       </View>
 
-      {/* --- STATUS SELECTION SECTION --- */}
       <View style={styles.contentBlock}>
         <ThemedText style={styles.sectionLabel}>Manga Status</ThemedText>
         <View style={styles.statusGrid}>
@@ -233,7 +241,6 @@ export default function AddMangaTemplate() {
                   },
                 ]}
               >
-                {/* Dynamically render the icon from your BadgeData util */}
                 {React.cloneElement(
                   config?.badgeIcon as React.ReactElement<{
                     size?: number;
@@ -261,7 +268,6 @@ export default function AddMangaTemplate() {
         </View>
       </View>
 
-      {/* --- NAME & GENRES --- */}
       <View style={styles.contentBlock}>
         <ThemedText style={styles.sectionLabel}>Title & Genres</ThemedText>
         <View style={styles.inputField}>
@@ -273,7 +279,6 @@ export default function AddMangaTemplate() {
             onChangeText={setMangaName}
           />
         </View>
-
         <View style={styles.genreRow}>
           {genres.map((item, index) => (
             <Pressable key={index} onPress={() => removeGenre(index)}>
@@ -290,7 +295,6 @@ export default function AddMangaTemplate() {
         </View>
       </View>
 
-      {/* --- DESCRIPTION --- */}
       <View style={styles.contentBlock}>
         <ThemedText style={styles.sectionLabel}>Synopsis</ThemedText>
         <TextInput
@@ -303,7 +307,6 @@ export default function AddMangaTemplate() {
         />
       </View>
 
-      {/* --- PROGRESS STEPPER --- */}
       <View style={styles.progressSection}>
         <ThemedText style={styles.sectionLabel}>
           Current Reading Progress
@@ -315,7 +318,6 @@ export default function AddMangaTemplate() {
           >
             <Ionicons name="remove" size={24} color="#fff" />
           </Pressable>
-
           <View style={styles.numberDisplay}>
             <TextInput
               keyboardType="numeric"
@@ -335,7 +337,6 @@ export default function AddMangaTemplate() {
               />
             </View>
           </View>
-
           <Pressable
             style={styles.stepBtn}
             onPress={() => setCurrentChap(currentChap + 1)}
@@ -345,7 +346,6 @@ export default function AddMangaTemplate() {
         </View>
       </View>
 
-      {/* --- ADULT CONTENT TOGGLE --- */}
       <Pressable style={styles.nsfwToggle} onPress={() => setIsAdult(!isAdult)}>
         <Ionicons
           name={isAdult ? "checkbox" : "square-outline"}
@@ -357,7 +357,6 @@ export default function AddMangaTemplate() {
         </Text>
       </Pressable>
 
-      {/* --- LINK SECTION --- */}
       <View style={styles.contentBlock}>
         <ThemedText style={styles.sectionLabel}>Source Link</ThemedText>
         <View style={styles.inputField}>
@@ -384,7 +383,6 @@ export default function AddMangaTemplate() {
         </View>
       </View>
 
-      {/* --- ACTIONS --- */}
       <View style={styles.footer}>
         <Button style={styles.mainSaveBtn} onPress={handleSubmitManga}>
           <Text style={styles.mainSaveText}>Save Manga</Text>
@@ -394,7 +392,6 @@ export default function AddMangaTemplate() {
         </Button>
       </View>
 
-      {/* --- MODAL --- */}
       <Modal visible={genreModalVisible} transparent animationType="fade">
         <View style={styles.modalOverlay}>
           <KeyboardAvoidingView
@@ -428,6 +425,7 @@ export default function AddMangaTemplate() {
   );
 }
 
+// Styles remain unchanged as per your existing code
 const styles = StyleSheet.create({
   statusGrid: {
     flexDirection: "row",
@@ -551,7 +549,7 @@ const styles = StyleSheet.create({
   nsfwText: { marginLeft: 10, color: "#888", fontWeight: "600" },
   footer: { flexDirection: "row", width: "100%", gap: 10, marginBottom: 24 },
   mainSaveBtn: {
-    flex: 1, // takes remaining space
+    flex: 1,
     height: 50,
     borderRadius: 18,
     backgroundColor: Colors.dark.primary,
@@ -618,7 +616,7 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "800",
     textAlign: "center",
-    fontFamily: Platform.OS === "ios" ? "Georgia" : "serif", // Classic book font
+    fontFamily: Platform.OS === "ios" ? "Georgia" : "serif",
     fontStyle: "italic",
     textTransform: "uppercase",
     letterSpacing: 1,
@@ -629,7 +627,7 @@ const styles = StyleSheet.create({
     top: 0,
     bottom: 0,
     width: 15,
-    backgroundColor: "rgba(255,255,255,0.03)", // Simulates a book spine highlight
+    backgroundColor: "rgba(255,255,255,0.03)",
     borderRightWidth: 1,
     borderRightColor: "rgba(0,0,0,0.2)",
   },

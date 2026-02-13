@@ -1,14 +1,15 @@
 import ScreenHug from "@/components/ScreenHug";
 import { Colors } from "@/constants/theme";
+import { useAlert } from "@/context/AlertContext"; // Import Alert Hook
 import { Ionicons } from "@expo/vector-icons";
 import * as DocumentPicker from "expo-document-picker";
 import { Directory, File, Paths } from "expo-file-system";
 import * as ImagePicker from "expo-image-picker";
+import { useRouter } from "expo-router";
 import { useSQLiteContext } from "expo-sqlite";
 import { openBrowserAsync } from "expo-web-browser";
 import React, { useEffect, useState } from "react";
 import {
-  Alert,
   Image,
   Pressable,
   ScrollView,
@@ -20,6 +21,7 @@ import {
 
 export default function Settings() {
   const db = useSQLiteContext();
+  const { showAlert } = useAlert(); // Initialize
   const [username, setUsername] = useState("");
   const [stats, setStats] = useState({ reading: 0, favorites: 0, plan: 0 });
   const [insights, setInsights] = useState({
@@ -31,6 +33,7 @@ export default function Settings() {
   const [avatarPath, setAvatarPath] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [hasLoaded, setHasLoaded] = useState(false);
+  const router = useRouter();
 
   useEffect(() => {
     loadData();
@@ -84,10 +87,16 @@ export default function Settings() {
 
       setHasLoaded(true);
     } catch (e) {
-      Alert.alert("Load Data Error", `${e}`);
+      // Simple Info Alert (One button)
+      showAlert({
+        title: "Load Error",
+        message: "Failed to load user statistics.",
+        type: "danger",
+      });
     }
   }
 
+  // Auto-save username
   useEffect(() => {
     if (!hasLoaded) return;
     const timeout = setTimeout(async () => {
@@ -97,7 +106,7 @@ export default function Settings() {
           username,
         ]);
       } catch (e) {
-        Alert.alert(`${e}`);
+        console.error(e);
       } finally {
         setIsSaving(false);
       }
@@ -125,7 +134,11 @@ export default function Settings() {
       ]);
       setAvatarPath(avatarFile.uri);
     } catch (e) {
-      Alert.alert("Error", "Failed to save avatar.");
+      showAlert({
+        title: "Error",
+        message: "Failed to save avatar image.",
+        type: "danger",
+      });
     }
   }
 
@@ -134,20 +147,17 @@ export default function Settings() {
     const cleanDocUri = Paths.document.uri.endsWith("/")
       ? Paths.document.uri.slice(0, -1)
       : Paths.document.uri;
-
     const dbFolderPath = `${cleanDocUri}/SQLite`;
     const tempBackupUri = `${dbFolderPath}/${tempFileName}`;
     let isAttached = false;
 
     try {
       await db.runAsync(`PRAGMA wal_checkpoint(FULL)`);
-
       const originalDbFile = new File(dbFolderPath, "manga.db");
       if (!originalDbFile.exists) throw new Error("Source DB not found.");
 
       const tempFile = new File(dbFolderPath, tempFileName);
       if (tempFile.exists) await tempFile.delete();
-
       await originalDbFile.copy(tempFile);
 
       const rawSqlPath = tempBackupUri.replace("file://", "");
@@ -165,61 +175,74 @@ export default function Settings() {
         isAttached = false;
       }
 
-      // Fix: Handle directory picker cancellation
       const destinationFolder = await Directory.pickDirectoryAsync();
       if (!destinationFolder) {
         await tempFile.delete();
-        return; // Silent exit on cancel
+        return;
       }
 
       const backupFile = destinationFolder.createFile(
         `manga_backup_${Date.now()}.db`,
         "application/x-sqlite3",
       );
-
       const modifiedBytes = await tempFile.bytes();
       await backupFile.write(modifiedBytes);
       await tempFile.delete();
 
-      Alert.alert("Success", "Backup exported successfully!");
+      showAlert({
+        title: "Success",
+        message: "Database exported successfully!",
+        type: "success",
+      });
     } catch (e: any) {
       if (isAttached) {
         try {
           await db.runAsync(`DETACH DATABASE backup`);
         } catch {}
       }
-      Alert.alert("Export Error", `Database sync failed.`);
+      showAlert({
+        title: "Export Error",
+        message: "Database sync failed.",
+        type: "danger",
+      });
     }
   }
 
   async function databaseImport() {
     try {
       const result = await DocumentPicker.getDocumentAsync({ type: ["*/*"] });
-      // Fix: Already handles cancellation correctly here
       if (result.canceled) return;
 
       const pickedFile = result.assets[0];
       const dbPath = `${Paths.document.uri}SQLite/manga.db`;
 
-      Alert.alert("Import Library", "App will restart to finalize.", [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Import & Exit",
-          onPress: async () => {
-            try {
-              const targetFile = new File(dbPath);
-              if (targetFile.exists) await targetFile.delete();
-              await new File(pickedFile.uri).copy(targetFile);
-              Alert.alert("Success", "Please restart the app.");
-            } catch (err) {
-              Alert.alert("Error", "File is locked or invalid.");
-            }
-          },
+      showAlert({
+        title: "Import Library",
+        message:
+          "Existing data will be overwritten. The app must restart to finalize.",
+        type: "info",
+        confirmText: "Import & Exit",
+        onConfirm: async () => {
+          try {
+            const targetFile = new File(dbPath);
+            if (targetFile.exists) await targetFile.delete();
+            await new File(pickedFile.uri).copy(targetFile);
+            showAlert({
+              title: "Success",
+              message: "Data imported. Please restart the app manually.",
+              type: "success",
+            });
+          } catch (err) {
+            showAlert({
+              title: "Error",
+              message: "File is locked or invalid.",
+              type: "danger",
+            });
+          }
         },
-      ]);
+      });
     } catch (e) {
-      // Only alert if it's a real failure, not a cancel
-      Alert.alert("Error", "Import failed.");
+      showAlert({ title: "Error", message: "Import failed.", type: "danger" });
     }
   }
 
@@ -228,26 +251,34 @@ export default function Settings() {
     const dbPath = `${dbDir}/manga.db`;
     const trashPath = `${dbDir}/manga.db.trash`;
 
-    Alert.alert("DANGER", "Wipe all data?", [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Reset",
-        style: "destructive",
-        onPress: async () => {
-          try {
-            const dbFile = new File(dbPath);
-            if (dbFile.exists) {
-              const trashFile = new File(trashPath);
-              if (trashFile.exists) await trashFile.delete();
-              await dbFile.move(trashFile);
-            }
-            Alert.alert("Done", "Please restart the app.");
-          } catch (e) {
-            Alert.alert("Error", "DB is busy.");
+    showAlert({
+      title: "DANGER",
+      message:
+        "This will wipe all your library, history, and favorites. This cannot be undone.",
+      type: "danger",
+      confirmText: "Wipe Data",
+      onConfirm: async () => {
+        try {
+          const dbFile = new File(dbPath);
+          if (dbFile.exists) {
+            const trashFile = new File(trashPath);
+            if (trashFile.exists) await trashFile.delete();
+            await dbFile.move(trashFile);
           }
-        },
+          showAlert({
+            title: "Done",
+            message: "Database reset. Please restart the app.",
+            type: "success",
+          });
+        } catch (e) {
+          showAlert({
+            title: "Error",
+            message: "Database is currently busy.",
+            type: "danger",
+          });
+        }
       },
-    ]);
+    });
   }
 
   return (
@@ -328,15 +359,14 @@ export default function Settings() {
             label="Clear History"
             color="#ff4444"
             onPress={() =>
-              Alert.alert("Clear", "Clear search history?", [
-                { text: "Cancel", style: "cancel" },
-                {
-                  text: "Clear All",
-                  style: "destructive",
-                  onPress: async () =>
-                    await db.runAsync(`DELETE FROM search_cache`),
-                },
-              ])
+              showAlert({
+                title: "Clear Cache",
+                message: "Do you want to clear your search history and cache?",
+                type: "danger",
+                confirmText: "Clear All",
+                onConfirm: async () =>
+                  await db.runAsync(`DELETE FROM search_cache`),
+              })
             }
           />
           <SettingItem
@@ -357,7 +387,14 @@ export default function Settings() {
             color="#666"
             onPress={resetDatabase}
           />
+          <SettingItem
+            icon="ban"
+            label="Blacklist"
+            color="#ab4eb1"
+            onPress={() => router.push("/blocked")}
+          />
         </View>
+
         <View style={[styles.section, { marginBottom: 40 }]}>
           <Text style={styles.sectionLabel}>About</Text>
           <SettingItem
@@ -381,6 +418,7 @@ export default function Settings() {
   );
 }
 
+// ... Sub-components and styles remain identical to your previous code ...
 const StatBox = ({ label, count, icon }: any) => (
   <View style={styles.statBox}>
     <Ionicons name={icon} size={20} color={Colors.dark.primary} />
@@ -483,11 +521,7 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
     letterSpacing: 1,
   },
-  insightsGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 12,
-  },
+  insightsGrid: { flexDirection: "row", flexWrap: "wrap", gap: 12 },
   insightItem: {
     flex: 0,
     width: "47.9%",

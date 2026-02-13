@@ -1,8 +1,8 @@
 import { Colors } from "@/constants/theme";
+import { useAlert } from "@/context/AlertContext"; // Import Alert Hook
 import { useMangaDetails } from "@/hooks/fetching/mangaDetails/useMangaDetails";
-import { getBadgeColor as BadgeData } from "@/utils/BadgeData";
 import { getStatusFromName } from "@/utils/getStatus";
-import { Ionicons, MaterialCommunityIcons, Octicons } from "@expo/vector-icons";
+import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import * as FileSystem from "expo-file-system";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
@@ -10,7 +10,6 @@ import { useSQLiteContext } from "expo-sqlite";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   Image,
   Linking,
   Pressable,
@@ -31,47 +30,56 @@ const INITIAL_VISIBLE_TAGS = 5;
 export default function MangaTemplate({ id }: { id: string }) {
   const db = useSQLiteContext();
   const router = useRouter();
+  const { showAlert } = useAlert(); // Initialize Alert
 
-  // --- STATE ---
   const {
     result: apiData,
     isLoading: apiLoading,
     genres: apiGenres,
   } = useMangaDetails(id);
-  const [isInLibrary, setIsInLibrary] = useState(false);
-  const [isAdding, setIsAdding] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
 
-  // Local Data State (Merged from API or DB)
+  const [isAdding, setIsAdding] = useState(false);
+  const [isBlocking, setIsBlocking] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isInLibrary, setIsInLibrary] = useState(false);
+  const [isBlocked, setIsBlocked] = useState(false);
+
   const [data, setData] = useState<any>(null);
   const [genres, setGenres] = useState<any[] | null>(null);
   const [query, setQuery] = useState("0");
-  const [readingLink, setReadingLink] = useState("");
 
-  // UI States
   const [expanded, setExpanded] = useState(false);
   const [expandedText, setExpandedText] = useState(false);
-  const [isFavorite, setIsFavorite] = useState(false);
-  const [isPlanToRead, setIsPlanToRead] = useState(false);
 
-  // --- 1. INITIAL LOAD: Check Library vs API ---
   useEffect(() => {
-    async function loadManga() {
+    async function checkStatus() {
       try {
-        setIsInLibrary(false);
-        setData(apiData);
-        setGenres(apiGenres);
-        setQuery(String(apiData?.currentChap || "0"));
+        const localCheck = await db.getFirstAsync<{ id: string }>(
+          "SELECT id FROM manga WHERE id = ?",
+          [id],
+        );
+        setIsInLibrary(!!localCheck);
+
+        const blockCheck = await db.getFirstAsync<{ manga_id: string }>(
+          "SELECT manga_id FROM blocked_manga WHERE manga_id = ?",
+          [id],
+        );
+        setIsBlocked(!!blockCheck);
+
+        if (apiData) {
+          setData(apiData);
+          setGenres(apiGenres);
+          setQuery(String(apiData?.currentChap || "0"));
+        }
       } catch (e) {
         console.error("Load Error", e);
       } finally {
         setIsLoading(false);
       }
     }
-    loadManga();
+    checkStatus();
   }, [id, apiData, apiGenres, db]);
 
-  // --- 2. ACTIONS: LIBRARY MANAGEMENT ---
   async function handleImageDownload(coverUri: string) {
     try {
       const coversDir = new FileSystem.Directory(
@@ -88,13 +96,11 @@ export default function MangaTemplate({ id }: { id: string }) {
       return null;
     }
   }
-
   async function addToLibrary() {
-    if (!data || isAdding) return;
+    if (!data || isAdding || isInLibrary) return;
     setIsAdding(true);
     try {
       const localUri = await handleImageDownload(data.coverUrl?.uri);
-      if (!localUri) throw new Error("Image download failed");
 
       await db.withTransactionAsync(async () => {
         await db.runAsync(
@@ -102,82 +108,92 @@ export default function MangaTemplate({ id }: { id: string }) {
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             id,
-            data.name,
-            data.description,
-            localUri,
-            data.coverUrl?.uri,
-            data.status,
-            data.year,
-            data.rating,
-            data.totalChap,
-            parseInt(query),
+            data.name ?? "Unknown",
+            data.description ?? "",
+            localUri ?? data.coverUrl?.uri ?? "",
+            data.coverUrl?.uri ?? "",
+            data.status ?? "ongoing",
+            data.year ?? null,
+            data.rating ?? null,
+            data.totalChap ?? 0,
+            parseInt(query) || 0,
             data.isAdult ? 1 : 0,
             Date.now(),
             Date.now(),
           ],
         );
-        if (genres) {
-          for (const g of genres) {
-            await db.runAsync(
-              "INSERT OR REPLACE INTO manga_genres (manga_id, genre) VALUES (?, ?)",
-              [id, g.attributes.name.en],
-            );
-          }
-        }
       });
       setIsInLibrary(true);
-      Alert.alert("Success", "Added to Library");
+      showAlert({
+        title: "Success",
+        message: "Added to your library.",
+        type: "success",
+      });
     } catch (e) {
-      Alert.alert("Error", "Failed to add.");
+      showAlert({
+        title: "Error",
+        message: "Failed to add manga to library.",
+        type: "danger",
+      });
     } finally {
       setIsAdding(false);
     }
   }
 
-  async function saveProgress() {
-    try {
-      await db.runAsync(
-        "UPDATE manga SET current_chap = ?, reading_link = ?, updated_at = ? WHERE id = ?",
-        [parseInt(query) || 0, readingLink, Date.now(), id],
-      );
-      Alert.alert("Success", "Progress saved!");
-    } catch (e) {
-      Alert.alert("Error", "Save failed");
-    }
-  }
+  const toggleBlock = async () => {
+    if (isBlocking || !data) return;
 
-  async function deleteManga() {
-    try {
-      await db.runAsync("DELETE FROM manga WHERE id = ?", [id]);
-      router.replace("/(tabs)/homeNew");
-    } catch (e) {
-      Alert.alert("Error", "Delete failed");
+    if (!isBlocked) {
+      showAlert({
+        title: "Block Manga?",
+        message:
+          "This will hide this title from search results and remove it from your library.",
+        type: "danger",
+        confirmText: "Block",
+        onConfirm: async () => {
+          setIsBlocking(true);
+          try {
+            await db.runAsync(
+              "INSERT INTO blocked_manga (manga_id, name, manga_image) VALUES (?, ?, ?)",
+              [
+                id,
+                data.name ?? "Unknown",
+                data.coverOnlineLink ?? data.coverUrl?.uri ?? "",
+              ],
+            );
+            // Also clean up from library if it was there
+            await db.runAsync("DELETE FROM manga WHERE id = ?", [id]);
+            setIsBlocked(true);
+            router.back();
+          } catch (e) {
+            showAlert({
+              title: "Error",
+              message: "Failed to block manga.",
+              type: "danger",
+            });
+          } finally {
+            setIsBlocking(false);
+          }
+        },
+      });
+    } else {
+      setIsBlocking(true);
+      try {
+        await db.runAsync("DELETE FROM blocked_manga WHERE manga_id = ?", [id]);
+        setIsBlocked(false);
+        showAlert({
+          title: "Unblocked",
+          message: "Manga is now visible again.",
+          type: "info",
+        });
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setIsBlocking(false);
+      }
     }
-  }
-
-  const toggleFavorite = async () => {
-    const next = !isFavorite;
-    setIsFavorite(next);
-    if (next)
-      await db.runAsync(
-        "INSERT OR REPLACE INTO favorites (manga_id, added_at) VALUES (?, ?)",
-        [id, Date.now()],
-      );
-    else await db.runAsync("DELETE FROM favorites WHERE manga_id = ?", [id]);
   };
 
-  const togglePlanToRead = async () => {
-    const next = !isPlanToRead;
-    setIsPlanToRead(next);
-    if (next)
-      await db.runAsync(
-        "INSERT OR REPLACE INTO plan_to_read (manga_id, added_at) VALUES (?, ?)",
-        [id, Date.now()],
-      );
-    else await db.runAsync("DELETE FROM plan_to_read WHERE manga_id = ?", [id]);
-  };
-
-  // --- RENDER HELPERS ---
   if (isLoading || apiLoading) {
     return (
       <View style={styles.centered}>
@@ -195,44 +211,6 @@ export default function MangaTemplate({ id }: { id: string }) {
     <ScreenHug title="" style={{ paddingTop: 30, alignItems: "center" }} scroll>
       <View style={{ position: "relative" }}>
         <Badge status={getStatusFromName(data?.status || "ongoing")} />
-
-        {/* Floating Actions (Only if in Library) */}
-        {isInLibrary && (
-          <View style={styles.floatingActionColumn}>
-            <Pressable
-              style={[
-                styles.floatingActionBtn,
-                {
-                  backgroundColor: BadgeData("favorites")?.badgeBackgroundColor,
-                },
-              ]}
-              onPress={toggleFavorite}
-            >
-              <Ionicons
-                name={isFavorite ? "heart" : "heart-outline"}
-                size={22}
-                color={isFavorite ? "#ff4444" : "#fff"}
-              />
-            </Pressable>
-            <Pressable
-              style={[
-                styles.floatingActionBtn,
-                {
-                  backgroundColor:
-                    BadgeData("plan-to-read")?.badgeBackgroundColor,
-                },
-              ]}
-              onPress={togglePlanToRead}
-            >
-              <Ionicons
-                name={isPlanToRead ? "bookmark" : "bookmark-outline"}
-                size={22}
-                color={isPlanToRead ? Colors.dark.primary : "#fff"}
-              />
-            </Pressable>
-          </View>
-        )}
-
         <View style={styles.mangaImageWrapper}>
           <Image source={data?.coverUrl} style={styles.mangaImage} />
           <LinearGradient
@@ -248,7 +226,6 @@ export default function MangaTemplate({ id }: { id: string }) {
         {data?.name}
       </Text>
 
-      {/* Genres */}
       <View style={styles.genreContainer}>
         {visibleGenres?.map((tag: any, i: number) => (
           <Tag title={tag.attributes.name.en} key={i} />
@@ -267,10 +244,7 @@ export default function MangaTemplate({ id }: { id: string }) {
       <View style={styles.sourceContainer}>
         <Pressable
           onPress={() => Linking.openURL(`https://mangadex.org/title/${id}`)}
-          style={({ pressed }) => [
-            styles.premiumSourceBtn,
-            { opacity: pressed ? 0.7 : 1 },
-          ]}
+          style={styles.premiumSourceBtn}
         >
           <MaterialCommunityIcons
             name="integrated-circuit-chip"
@@ -282,7 +256,6 @@ export default function MangaTemplate({ id }: { id: string }) {
         </Pressable>
       </View>
 
-      {/* Description */}
       <View style={styles.descriptionWrapper}>
         <View
           style={{
@@ -304,9 +277,8 @@ export default function MangaTemplate({ id }: { id: string }) {
         </Pressable>
       </View>
 
-      {/* Stepper Section */}
       <View style={styles.stepperSection}>
-        <ThemedText style={styles.sectionTitle}>Current Progress</ThemedText>
+        <ThemedText style={styles.sectionTitle}>Initial Progress</ThemedText>
         <View style={styles.largeStepperRow}>
           <Pressable
             style={styles.circleStepBtn}
@@ -333,68 +305,43 @@ export default function MangaTemplate({ id }: { id: string }) {
         </View>
       </View>
 
-      {/* Conditional Footer Actions */}
-      {isInLibrary ? (
-        <View style={{ width: "90%" }}>
-          <ThemedText style={[styles.sectionTitle, { marginTop: 40 }]}>
-            Reading Source
-          </ThemedText>
-          <View style={styles.linkLargeButton}>
-            <Ionicons name="link" size={20} color={Colors.dark.primary} />
-            <TextInput
-              placeholder="Paste link..."
-              placeholderTextColor="#444"
-              style={styles.linkText}
-              value={readingLink}
-              onChangeText={setReadingLink}
-              autoCapitalize="none"
-            />
-            <Pressable
-              onPress={() =>
-                Linking.openURL(readingLink).catch(() =>
-                  Alert.alert("Error", "Invalid link"),
-                )
-              }
-            >
+      <View style={styles.actionRow}>
+        <Button
+          style={[styles.primaryBtn, isInLibrary ? styles.disabledBtn : {}]}
+          onPress={addToLibrary}
+          disabled={isAdding || isInLibrary}
+        >
+          {isAdding ? (
+            <ActivityIndicator color="#fff" />
+          ) : isInLibrary ? (
+            <View style={styles.row}>
               <Ionicons
-                name="open-outline"
-                size={22}
-                color={Colors.dark.primary}
+                name="checkmark"
+                size={18}
+                color="rgba(255,255,255,0.4)"
               />
-            </Pressable>
-          </View>
-          <View style={styles.buttonRow}>
-            <Button style={styles.saveButton} onPress={saveProgress}>
-              Save Progress
-            </Button>
-            <Button
-              style={styles.deleteButton}
-              onPress={() =>
-                Alert.alert("Delete", "Remove?", [
-                  { text: "No" },
-                  {
-                    text: "Delete",
-                    onPress: deleteManga,
-                    style: "destructive",
-                  },
-                ])
-              }
-            >
-              <Octicons name="trash" size={24} color="#ff4444" />
-            </Button>
-          </View>
-        </View>
-      ) : (
-        <View style={styles.actionContainer}>
-          <Button
-            style={styles.primaryBtn}
-            onPress={addToLibrary}
-            disabled={isAdding}
-          >
-            {isAdding ? <ActivityIndicator color="#fff" /> : "Add to Library"}
-          </Button>
-        </View>
-      )}
+              <Text style={styles.disabledBtnText}>In Library</Text>
+            </View>
+          ) : (
+            "Add to Library"
+          )}
+        </Button>
+
+        <Pressable
+          style={[styles.blockBtn, isBlocked && styles.blockBtnActive]}
+          onPress={toggleBlock}
+        >
+          {isBlocking ? (
+            <ActivityIndicator size="small" color="#ff4444" />
+          ) : (
+            <Ionicons
+              name={isBlocked ? "eye-off" : "ban"}
+              size={22}
+              color={isBlocked ? Colors.dark.primary : "#ff4444"}
+            />
+          )}
+        </Pressable>
+      </View>
     </ScreenHug>
   );
 }
@@ -417,6 +364,7 @@ const styles = StyleSheet.create({
   mangaTitle: {
     marginTop: 20,
     fontSize: 32,
+    height: "auto",
     textAlign: "center",
     fontFamily: "ni",
     color: "#fff",
@@ -437,9 +385,7 @@ const styles = StyleSheet.create({
     borderColor: "rgba(255,255,255,0.2)",
   },
   moreTagText: { color: "#fff", fontSize: 12 },
-
   showMoreText: { color: Colors.dark.primary, fontWeight: "700", fontSize: 12 },
-
   stepperSection: { marginTop: 30, width: "90%", alignItems: "center" },
   largeStepperRow: { flexDirection: "row", alignItems: "center", gap: 30 },
   circleStepBtn: {
@@ -463,68 +409,46 @@ const styles = StyleSheet.create({
     marginTop: -5,
   },
   hugeNumberContainer: { alignItems: "center", minWidth: 80 },
-  linkLargeButton: {
+
+  // ACTION AREA
+  actionRow: {
     flexDirection: "row",
-    alignItems: "center",
+    width: "92%",
+    gap: 12,
+    marginTop: 30,
+    paddingBottom: 60, // Increased to ensure it's above the bottom of the screen
+  },
+  primaryBtn: {
+    flex: 1,
+    height: 56,
+    borderRadius: 16,
+    backgroundColor: Colors.dark.primary,
+  },
+  disabledBtn: {
     backgroundColor: "#111",
-    borderRadius: 15,
-    padding: 12,
-    gap: 10,
     borderWidth: 1,
     borderColor: "#222",
   },
-  linkText: { flex: 1, color: "#fff", fontSize: 14 },
-
-  saveButton: {
-    flex: 1,
-    height: 50,
-    borderRadius: 15,
-    backgroundColor: Colors.dark.primary,
-  },
-  deleteButton: {
-    width: 60,
-    height: 50,
-    borderRadius: 15,
-    backgroundColor: "rgba(255,68,68,0.1)",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  actionContainer: { width: "90%", gap: 10, marginTop: 20, paddingBottom: 40 },
-  outlineBtn: {
-    height: 50,
-    borderRadius: 15,
-    borderWidth: 1,
-    borderColor: Colors.dark.primary,
-    flexDirection: "row",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  outlineBtnText: {
-    color: Colors.dark.primary,
-    marginLeft: 8,
+  disabledBtnText: {
+    color: "rgba(255,255,255,0.4)",
     fontWeight: "700",
+    marginLeft: 6,
   },
-  primaryBtn: {
-    height: 50,
-    borderRadius: 15,
-    backgroundColor: Colors.dark.primary,
-  },
-  floatingActionColumn: {
-    position: "absolute",
-    right: -15,
-    top: 10,
-    zIndex: 10,
-    gap: 10,
-  },
-  floatingActionBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+  blockBtn: {
+    width: 56,
+    height: 56,
+    borderRadius: 16,
+    backgroundColor: "rgba(255, 68, 68, 0.08)",
     justifyContent: "center",
     alignItems: "center",
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.1)",
+    borderColor: "rgba(255, 68, 68, 0.2)",
   },
+  blockBtnActive: {
+    backgroundColor: "#111",
+    borderColor: Colors.dark.primary,
+  },
+  row: { flexDirection: "row", alignItems: "center" },
   markdown: { body: { color: "#aaa", fontSize: 14, lineHeight: 20 } } as any,
   sourceContainer: {
     width: "100%",
@@ -535,7 +459,7 @@ const styles = StyleSheet.create({
   premiumSourceBtn: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "rgba(255,255,255,0.03)", // Subtle depth
+    backgroundColor: "rgba(255,255,255,0.03)",
     paddingVertical: 8,
     paddingHorizontal: 16,
     borderRadius: 12,
@@ -553,11 +477,10 @@ const styles = StyleSheet.create({
   descriptionWrapper: {
     marginTop: 15,
     width: "90%",
-    backgroundColor: "rgba(255,255,255,0.02)", // Very slight contrast for the text box
+    backgroundColor: "rgba(255,255,255,0.02)",
     padding: 15,
     borderRadius: 20,
   },
-  // Update your existing sectionTitle for better hierarchy
   sectionTitle: {
     fontSize: 11,
     fontWeight: "800",
@@ -566,14 +489,5 @@ const styles = StyleSheet.create({
     color: "rgba(255,255,255,0.3)",
     marginBottom: 20,
     textAlign: "center",
-  },
-  // Clean up the bottom button row so it's strictly for local actions
-  buttonRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    width: "90%",
-    gap: 12,
-    marginTop: 30,
-    marginBottom: 50,
   },
 });

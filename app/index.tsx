@@ -1,20 +1,15 @@
 import { Colors } from "@/constants/theme";
+import { useAlert } from "@/context/AlertContext";
 import { styles as GlobalStyles } from "@/styles/globalStyles";
 import { useRouter } from "expo-router";
 import { useSQLiteContext } from "expo-sqlite";
 import React, { useEffect, useState } from "react";
-import {
-  Alert,
-  Image,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
-} from "react-native";
+import { Image, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 export default function Signup() {
   const insets = useSafeAreaInsets();
+  const { showAlert } = useAlert(); // Initialize
 
   const router = useRouter();
   const db = useSQLiteContext();
@@ -28,7 +23,11 @@ export default function Signup() {
       ]);
       router.push("/(tabs)/homeNew");
     } catch (e) {
-      Alert.alert("Error" + e);
+      showAlert({
+        title: "Error",
+        message: "Failed to save user.",
+        type: "danger",
+      });
     }
   }
   /* useEffect(() => {
