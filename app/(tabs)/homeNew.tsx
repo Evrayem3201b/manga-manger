@@ -22,6 +22,8 @@ export default function Home() {
   const db = useSQLiteContext();
   const { showAlert } = useAlert(); // Initialize
   const [data, setData] = useState<MangaDB[]>([]);
+  const [blockedIds, setBlockedIds] = useState<Set<string>>(new Set());
+
   const [localQuery, setLocalQuery] = useState("");
   const [showFilters, setShowFilters] = useState(false);
   const [selectedStatus, setSelectedStatus] = useState<string | null>("all");
@@ -38,9 +40,13 @@ export default function Home() {
       const appMetaInfo: any = await db.getAllAsync(
         `PRAGMA table_info(app_meta)`,
       );
+      const blockedInfo: any = await db.getAllAsync(
+        `PRAGMA table_info(blocked_manga)`,
+      );
 
       const columns = tableInfo.map((c: any) => c.name);
       const metaColumns = appMetaInfo.map((c: any) => c.name);
+      const blockedColumns = appMetaInfo.map((c: any) => c.name);
 
       if (!columns.includes("is_pinned"))
         await db.runAsync(
@@ -54,6 +60,10 @@ export default function Home() {
         await db.runAsync(
           `ALTER TABLE manga ADD COLUMN queue_order INTEGER DEFAULT 0`,
         );
+      // if (!blockedColumns.includes("blocked_at"))
+      //   await db.runAsync(
+      //     `ALTER TABLE blocked_manga ADD COLUMN blocked_at TEXT`,
+      //   );
 
       if (!metaColumns.includes("prop"))
         await db.runAsync(`ALTER TABLE app_meta ADD COLUMN prop TEXT`);
@@ -76,6 +86,17 @@ export default function Home() {
       return false;
     }
   }, [db, showAlert]);
+
+  const loadBlockedManga = async () => {
+    try {
+      const blocked: { manga_id: string }[] = await db.getAllAsync(
+        `SELECT manga_id FROM blocked_manga`,
+      );
+      setBlockedIds(new Set(blocked.map((b) => b.manga_id)));
+    } catch (e) {
+      console.error("Failed to load blocked manga", e);
+    }
+  };
 
   const getGenres = useCallback(
     async (status: string | null) => {
@@ -110,6 +131,7 @@ export default function Home() {
 
   const fetchFilteredManga = useCallback(async () => {
     if (isMigrating) return;
+
     try {
       let params: any[] = [`%${localQuery}%`];
       let sql = `
@@ -141,7 +163,11 @@ export default function Home() {
 
       sql += ` ORDER BY m.updated_at DESC`;
       const fetchedData: MangaDB[] = await db.getAllAsync(sql, params);
-      setData(fetchedData);
+      const filteredData = fetchedData.filter((manga) => {
+        if (blockedIds.has(manga.id)) return false;
+        return true;
+      });
+      setData(filteredData);
     } catch (e) {
       showAlert({
         title: "Fetch Error",
@@ -149,7 +175,15 @@ export default function Home() {
         type: "danger",
       });
     }
-  }, [selectedStatus, selectedGenres, localQuery, isMigrating, db, showAlert]);
+  }, [
+    selectedStatus,
+    selectedGenres,
+    localQuery,
+    isMigrating,
+    db,
+    showAlert,
+    blockedIds,
+  ]);
 
   useEffect(() => {
     async function init() {
@@ -161,6 +195,12 @@ export default function Home() {
     }
     init();
   }, [runMigrations]);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadBlockedManga(); // Fetch blocked list whenever screen comes into focus
+    }, []),
+  );
 
   useEffect(() => {
     if (!isMigrating) getGenres(selectedStatus);

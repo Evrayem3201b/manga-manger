@@ -169,11 +169,11 @@ export default function MangaTemplate({ id }: { id: string }) {
         if (!data) return;
         try {
           await db.runAsync(
-            `INSERT INTO blocked_manga (manga_id, name, manga_image) VALUES (?, ?, ?)`,
-            [id, data?.name, data?.coverUrl?.uri],
+            `INSERT INTO blocked_manga (manga_id, name, manga_image, blocked_at) VALUES (?, ?, ?, ?)`,
+            [id, data?.name, data?.coverUrl?.uri, Date.now()],
           );
           // After blocking, delete from library and go home
-          await db.runAsync("DELETE FROM manga WHERE id = ?", [id]);
+
           router.replace("/(tabs)/homeNew");
         } catch (e) {
           console.error(e);
@@ -250,12 +250,12 @@ export default function MangaTemplate({ id }: { id: string }) {
 
         <View style={styles.floatingActionColumn}>
           {/* Block Button */}
-          <Pressable
+          {/* <Pressable
             style={[styles.floatingActionBtn, { backgroundColor: "#393939c2" }]}
             onPress={handleBlockManga}
           >
             <Ionicons name="ban-outline" size={20} color="#ff4444" />
-          </Pressable>
+          </Pressable> */}
 
           <Pressable
             style={[
@@ -461,21 +461,62 @@ export default function MangaTemplate({ id }: { id: string }) {
         >
           Save Progress
         </Button>
-        <Button
-          style={styles.deleteButton}
-          onPress={() =>
-            showAlert({
-              title: "Remove Manga?",
-              message:
-                "Are you sure you want to delete this from your library?",
-              type: "danger",
-              confirmText: "Delete",
-              onConfirm: deleteManga,
-            })
-          }
-        >
-          <Octicons name="trash" size={24} color="rgba(255, 68, 68, 0.85)" />
-        </Button>
+      </View>
+      {/* DANGER ZONE */}
+      <View style={styles.dangerSection}>
+        <View style={styles.dangerHeaderRow}>
+          <Octicons name="alert" size={12} color="rgba(255, 68, 68, 0.5)" />
+          <Text style={styles.dangerTitle}>Danger Zone</Text>
+        </View>
+
+        <View style={styles.dangerCard}>
+          {/* Block Action */}
+          <Pressable
+            style={({ pressed }) => [
+              styles.dangerActionItem,
+              pressed && { backgroundColor: "rgba(255,255,255,0.02)" },
+            ]}
+            onPress={handleBlockManga}
+          >
+            <View>
+              <Text style={styles.dangerActionText}>Block Manga</Text>
+              <Text style={styles.dangerSubText}>
+                Hide from search and all lists
+              </Text>
+            </View>
+            <Ionicons name="ban" size={20} color="rgba(255, 255, 255, 0.2)" />
+          </Pressable>
+
+          <View style={styles.dangerDivider} />
+
+          {/* Delete Action */}
+          <Pressable
+            style={({ pressed }) => [
+              styles.dangerActionItem,
+              pressed && { backgroundColor: "rgba(255,68,68,0.05)" },
+            ]}
+            onPress={() =>
+              showAlert({
+                title: "Remove Manga?",
+                message:
+                  "Are you sure you want to delete this from your library?",
+                type: "danger",
+                confirmText: "Delete",
+                onConfirm: deleteManga,
+              })
+            }
+          >
+            <View>
+              <Text style={[styles.dangerActionText, { color: "#ff4444" }]}>
+                Remove from Library
+              </Text>
+              <Text style={styles.dangerSubText}>
+                Delete local progress and data
+              </Text>
+            </View>
+            <Octicons name="trash" size={20} color="rgba(255, 68, 68, 0.4)" />
+          </Pressable>
+        </View>
       </View>
     </ScreenHug>
   );
@@ -513,21 +554,6 @@ const styles = StyleSheet.create({
   },
 
   readNowText: { fontSize: 12, fontWeight: "bold" },
-
-  saveButton: {
-    flex: 1,
-    height: 50,
-    borderRadius: 18,
-    backgroundColor: Colors.dark.primary,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-
-  saveButtonText: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: Colors.dark.background,
-  },
 
   deleteButton: {
     borderRadius: 18,
@@ -777,6 +803,74 @@ const styles = StyleSheet.create({
     gap: 12,
     marginTop: 20,
     marginBottom: 24,
+  },
+
+  saveButton: {
+    // width: "100%",
+    height: 58,
+    flex: 1,
+    borderRadius: 20,
+    backgroundColor: Colors.dark.primary,
+    justifyContent: "center",
+    alignItems: "center",
+    // Premium shadow/glow effect
+    shadowColor: Colors.dark.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+    elevation: 5,
+  },
+  saveButtonText: {
+    fontSize: 17,
+    fontWeight: "800",
+    color: "#000", // High contrast on primary color
+  },
+  dangerSection: {
+    width: "90%",
+    marginTop: 30,
+    marginBottom: 80,
+  },
+  dangerHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginBottom: 10,
+    paddingLeft: 5,
+  },
+  dangerTitle: {
+    fontSize: 11,
+    fontWeight: "800",
+    textTransform: "uppercase",
+    letterSpacing: 1.2,
+    color: "rgba(255, 68, 68, 0.5)",
+  },
+  dangerCard: {
+    backgroundColor: "rgba(255, 68, 68, 0.03)",
+    borderRadius: 22,
+    borderWidth: 1,
+    borderColor: "rgba(255, 68, 68, 0.12)",
+    overflow: "hidden",
+  },
+  dangerActionItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    padding: 20,
+  },
+  dangerActionText: {
+    color: "#eee",
+    fontSize: 15,
+    fontWeight: "600",
+  },
+  dangerSubText: {
+    color: "#555",
+    fontSize: 12,
+    marginTop: 2,
+  },
+  dangerDivider: {
+    height: 1,
+    backgroundColor: "rgba(255, 68, 68, 0.08)",
+    marginHorizontal: 20,
   },
 
   markdown: {

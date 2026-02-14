@@ -2,7 +2,7 @@ import { Colors } from "@/constants/theme";
 import { useAlert } from "@/context/AlertContext"; // Import Alert Hook
 import { useMangaDetails } from "@/hooks/fetching/mangaDetails/useMangaDetails";
 import { getStatusFromName } from "@/utils/getStatus";
-import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import { Ionicons, MaterialCommunityIcons, Octicons } from "@expo/vector-icons";
 import * as FileSystem from "expo-file-system";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
@@ -154,15 +154,16 @@ export default function MangaTemplate({ id }: { id: string }) {
           setIsBlocking(true);
           try {
             await db.runAsync(
-              "INSERT INTO blocked_manga (manga_id, name, manga_image) VALUES (?, ?, ?)",
+              "INSERT INTO blocked_manga (manga_id, name, manga_image, blocked_at) VALUES (?, ?, ?, ?)",
               [
                 id,
                 data.name ?? "Unknown",
                 data.coverOnlineLink ?? data.coverUrl?.uri ?? "",
+                Date.now(),
               ],
             );
             // Also clean up from library if it was there
-            await db.runAsync("DELETE FROM manga WHERE id = ?", [id]);
+            // await db.runAsync("DELETE FROM manga WHERE id = ?", [id]);
             setIsBlocked(true);
             router.back();
           } catch (e) {
@@ -326,27 +327,80 @@ export default function MangaTemplate({ id }: { id: string }) {
             "Add to Library"
           )}
         </Button>
+      </View>
+      {/* DANGER ZONE */}
+      <View style={styles.dangerSection}>
+        <View style={styles.dangerHeaderRow}>
+          <Octicons name="alert" size={12} color="rgba(255, 68, 68, 0.5)" />
+          <Text style={styles.dangerTitle}>Danger Zone</Text>
+        </View>
 
-        <Pressable
-          style={[styles.blockBtn, isBlocked && styles.blockBtnActive]}
-          onPress={toggleBlock}
-        >
-          {isBlocking ? (
-            <ActivityIndicator size="small" color="#ff4444" />
-          ) : (
-            <Ionicons
-              name={isBlocked ? "eye-off" : "ban"}
-              size={22}
-              color={isBlocked ? Colors.dark.primary : "#ff4444"}
-            />
-          )}
-        </Pressable>
+        <View style={styles.dangerCard}>
+          {/* Block Action */}
+          <Pressable
+            style={({ pressed }) => [
+              styles.dangerActionItem,
+              pressed && { backgroundColor: "rgba(255,255,255,0.02)" },
+            ]}
+            onPress={toggleBlock}
+          >
+            <View>
+              <Text style={styles.dangerActionText}>Block Manga</Text>
+              <Text style={styles.dangerSubText}>
+                Hide from search and all lists
+              </Text>
+            </View>
+            <Ionicons name="ban" size={20} color="rgba(255, 255, 255, 0.2)" />
+          </Pressable>
+        </View>
       </View>
     </ScreenHug>
   );
 }
 
 const styles = StyleSheet.create({
+  dangerSection: {
+    width: "90%",
+    marginTop: 0,
+    marginBottom: 80,
+  },
+  dangerHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginBottom: 10,
+    paddingLeft: 5,
+  },
+  dangerTitle: {
+    fontSize: 11,
+    fontWeight: "800",
+    textTransform: "uppercase",
+    letterSpacing: 1.2,
+    color: "rgba(255, 68, 68, 0.5)",
+  },
+  dangerCard: {
+    backgroundColor: "rgba(255, 68, 68, 0.03)",
+    borderRadius: 22,
+    borderWidth: 1,
+    borderColor: "rgba(255, 68, 68, 0.12)",
+    overflow: "hidden",
+  },
+  dangerActionItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    padding: 20,
+  },
+  dangerActionText: {
+    color: "#eee",
+    fontSize: 15,
+    fontWeight: "600",
+  },
+  dangerSubText: {
+    color: "#555",
+    fontSize: 12,
+    marginTop: 2,
+  },
   centered: {
     flex: 1,
     justifyContent: "center",

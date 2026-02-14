@@ -20,6 +20,7 @@ interface BlockedManga {
   manga_id: string;
   name: string;
   manga_image: string;
+  blocked_at: Date;
 }
 
 export default function BlockedMangaPage() {
@@ -33,14 +34,14 @@ export default function BlockedMangaPage() {
 
   const fetchBlocked = useCallback(async () => {
     try {
-      let sql = `SELECT manga_id, name, manga_image FROM blocked_manga`;
+      let sql = `SELECT manga_id, name, manga_image, blocked_at FROM blocked_manga`;
       let params: any[] = [];
 
       if (localQuery) {
         sql += ` WHERE name LIKE ?`;
         params.push(`%${localQuery}%`);
       }
-      sql += ` ORDER BY name ASC`; // Changed to Alpha for easier finding in lists
+      sql += ` ORDER BY blocked_at DESC`; // Changed to Alpha for easier finding in lists
 
       const results: BlockedManga[] = await db.getAllAsync(sql, params);
       setData(results);
